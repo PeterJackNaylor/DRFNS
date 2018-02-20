@@ -14,7 +14,7 @@ import numpy as np
 import pdb
 import time
 from progressbar import ProgressBar
-from postprocessing.postprocessing import PostProcess, generate_wsl
+from postproc.postprocessing import PostProcess, generate_wsl
 
 def GetOptions():
     """

@@ -7,12 +7,11 @@ IMAGE_FOLD = file(params.image_dir + "/ForDataGenTrainTestVal")
 
 /*          0) a) Resave all the images so that they have 1 for label instead of 255 
             0) b) Resave all the images so that they are distance map
-            0) c) Resave all the images so that they are normalized
 In outputs:
 newpath name
 */
 
-CHANGESCALE = file('src_RealData/preprocessing/changescale.py')
+CHANGESCALE = file('src_RealData/preproc/changescale.py')
 NAMES = ["FCN", "UNet"]
 
 process ChangeInput {
@@ -28,7 +27,7 @@ process ChangeInput {
     """
 }
 
-BinToDistanceFile = file('src_RealData/preprocessing/BinToDistance.py')
+BinToDistanceFile = file('src_RealData/preproc/BinToDistance.py')
 
 process BinToDistance {
     input:
@@ -79,7 +78,7 @@ In outputs:
 a set with the name, the split and the record
 */
 
-MEANPY = file('src_RealData/preprocessing/MeanCalculation.py')
+MEANPY = file('src_RealData/preproc/MeanCalculation.py')
 
 process Mean {
     input:

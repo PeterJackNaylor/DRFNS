@@ -22,7 +22,7 @@ class Model(UNetDistance):
         acc, F1, recall = 0., 0., 0.
         precision, jac, AJI = 0., 0., 0.
         init_op = tf.group(tf.global_variables_initializer(),
-                   tf.local_variables_initializer(), self.init_data)
+                   tf.local_variables_initializer(), self.data_init)
         self.sess.run(init_op)
         self.Saver()
         

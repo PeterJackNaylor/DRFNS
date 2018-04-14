@@ -38,7 +38,7 @@ class FCN8():
         if split != "validation":
             self.fcn_8s_checkpoint_path = glob(self.checkpoint8 + "/*.data*")[0].split(".data")[0]
         else:
-            self.setup_val(record)
+            self.setup_test(record)
     def setup_record(self):
         """
         Setup record reading.
@@ -147,9 +147,9 @@ class FCN8():
             print("Model saved in file: %s" % save_path)
 
 
-    def test8(self, steps, restore, p1):
+    def validation8(self, steps, restore, p1):
         """
-        Tests the model.
+        Validates the model.
         """
         # Fake batch for image and annotation by adding
         # leading empty axis.
@@ -200,9 +200,9 @@ class FCN8():
             recall, precision, roc = np.array([recall, precision, roc]) / steps
             jac, AJI = np.array([jac, AJI]) / steps
             return loss, acc, F1, recall, precision, roc, jac, AJI 
-    def setup_val(self, tfname):
+    def setup_test(self, tfname):
         """
-        Setups the model in case we need to validate.
+        Setups the model in case we need to test.
         """
         self.restore = glob(os.path.join(self.checkpoint8, "FCN__*", "*.data*" ))[0].split(".data")[0]  
         
@@ -231,9 +231,9 @@ class FCN8():
         with tf.Session() as sess:
             sess.run(initializer)
             self.saver.restore(sess, self.restore)
-    def validation(self, DG_TEST, steps, p1, p2, save_organ):
+    def test8(self, DG_TEST, steps, p1, p2, save_organ):
         """
-        Validates the model.
+        Test the model.
         """
         tmp_name = os.path.basename(save_organ) + ".tfRecord" 
         res = []

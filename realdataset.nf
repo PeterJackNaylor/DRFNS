@@ -54,7 +54,7 @@ DIST_REC = ["DIST", "--UNet", 212]
 
 RECORDS_OPTIONS = Channel.from(UNET_REC, FCN_REC, DIST_REC)
 FOLDS.join(RECORDS_OPTIONS) .set{RECORDS_OPTIONS_v2}
-RECORDS_HP = [["train", "16", "0"], ["test", "1", 500], ["validation", "1", 996]]
+RECORDS_HP = [["train", "16", "0"], ["validation", "1", 996], ["test", "1", 996]]
 
 process CreateRecords {
     input:
@@ -65,13 +65,15 @@ process CreateRecords {
     output:
     set val("${name}"), val("${op[0]}"), file("${op[0]}_${name}.tfrecords") into NSR0, NSR1, NSR2
     """
-    python $py --tf_record ${op[0]}_${name}.tfrecords --split ${op[0]} --path $path --crop ${op[1]} $unet --size_train $size_train --size_test ${op[2]} --seed 42 --epoch $epoch --type JUST_READ 
+    python $py --tf_record ${op[0]}_${name}.tfrecords --split ${op[0]} \\ 
+               --path $path --crop ${op[1]} $unet --size_train $size_train \\
+               --size_test ${op[2]} --seed 42 --epoch 1 --type JUST_READ 
     """
 }
 
 NSR0.filter{ it -> it[1] == "train" }.set{TRAIN_REC}
-NSR1.filter{ it -> it[1] == "test" }.set{TEST_REC}
-NSR2.filter{ it -> it[1] == "validation" }.set{VAL_REC}
+NSR1.filter{ it -> it[1] == "validation" }.set{VAL_REC}
+NSR2.filter{ it -> it[1] == "test" }.set{TEST_REC}
 
 /*          2) We create the mean
 In outputs:
@@ -97,7 +99,7 @@ In outputs:
 a set with the name, the parameters of the model
 */
 
-ITERTEST = 50
+ITERVAL = 50
 ITER8 = 108 // 10800
 LEARNING_RATE = [0.01]//, 0.001, 0.0001, 0.00001, 0.000001]
 FEATURES = [16]//, 32, 64]
@@ -134,7 +136,10 @@ process Training {
     "$name" != "FCN" || ("$feat" == "${FEATURES[0]}" && "$wd" == "${WEIGHT_DECAY[0]}")
     script:
     """
-    python $py --tf_record $rec --path $path  --log ${name}__${feat}_${wd}_${lr} --learning_rate $lr --batch_size $bs --epoch $epoch --n_features $feat --weight_decay $wd --mean_file ${mean} --n_threads 100 --restore $__ --size_train $size --split $split --iters $iters
+    python $py --tf_record $rec --path $path  --log ${name}__${feat}_${wd}_${lr} \\
+               --learning_rate $lr --batch_size $bs --epoch $epoch --n_features $feat \\
+               --weight_decay $wd --mean_file ${mean} --n_threads 100 --restore $__ \\ 
+               --size_train $size --split $split --iters $iters
     """
 } 
 
@@ -146,26 +151,28 @@ In outputs: a set with the name and model or csv
 // a)
 P1 = [0, 1, 10, 11]//[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 P2 = [0.5, 1.0] //, 1.5, 2.0]
-TEST_REC.cross(RESULT_TRAIN).map{ first, second -> [first, second.drop(1)].flatten() } .set{ TEST_OPTIONS_pre }
-Meanfile2.cross(TEST_OPTIONS_pre).map { first, second -> [first, second.drop(1)].flatten() } .into{TEST_OPTIONS;TEST_OPTIONS2}
+VAL_REC.cross(RESULT_TRAIN).map{ first, second -> [first, second.drop(1)].flatten() } .set{ VAL_OPTIONS_pre }
+Meanfile2.cross(VAL_OPTIONS_pre).map { first, second -> [first, second.drop(1)].flatten() } .into{VAL_OPTIONS;VAL_OPTIONS2}
 
-process Testing {
+process Validation {
     maxForks 2
     beforeScript "source \$HOME/CUDA_LOCK/.whichNODE"
     afterScript "source \$HOME/CUDA_LOCK/.freeNODE"
     input:
-    set name, file(mean), file(path), split, file(rec), file(model), file(py), feat, wd, lr from TEST_OPTIONS    
+    set name, file(mean), file(path), split, file(rec), file(model), file(py), feat, wd, lr from VAL_OPTIONS    
     each p1 from P1
     each p2 from P2
-    val iters from ITERTEST
+    val iters from ITERVAL
     output:
-    set val("$name"), file("${name}__${feat}_${wd}_${lr}_${p1}_${p2}.csv") into RESULT_TEST
-    set val("$name"), file("$model") into MODEL_TEST
+    set val("$name"), file("${name}__${feat}_${wd}_${lr}_${p1}_${p2}.csv") into RESULT_VAL
+    set val("$name"), file("$model") into MODEL_VAL
     when:
     ("$name" =~ "DIST" && p1 < 6) || ( !("$name" =~ "DIST") && p2 == P2[0] && p1 > 5)
     script:
     """
-    python $py --tf_record $rec --path $path  --log $model --batch_size 1 --n_features $feat --mean_file ${mean} --n_threads 100 --split $split --size_test 500 --p1 ${p1} --p2 ${p2} --restore $model --iters $iters --output ${name}__${feat}_${wd}_${lr}_${p1}_${p2}.csv
+    python $py --tf_record $rec --path $path  --log $model --batch_size 1 --n_features $feat \\ 
+               --mean_file ${mean} --n_threads 100 --split $split --size_test 996 --p1 ${p1} \\ 
+               --p2 ${p2} --restore $model --iters $iters --output ${name}__${feat}_${wd}_${lr}_${p1}_${p2}.csv
     """  
 
 }
@@ -177,7 +184,7 @@ In outputs: name, best_model, p1, p2
 */
 // a)
 REGROUP = file('src_RealData/postprocessing/regroup.py')
-RESULT_TEST  .groupTuple() 
+RESULT_VAL  .groupTuple() 
              .set { KEY_CSV }
 RESULT_TRAIN2.map{name, model, py, feat, wd, lr -> [name, model]} .groupTuple() . set {ALL_MODELS}
 KEY_CSV .join(ALL_MODELS) .set {KEY_CSV_MODEL}
@@ -189,13 +196,13 @@ process GetBestPerKey {
     set name, file(csv), file(model) from KEY_CSV_MODEL
 
     output:
-    set val("$name"), file("best_model") into BEST_MODEL_TEST
+    set val("$name"), file("best_model") into BEST_MODEL_VAL
     file 'feat_val' into N_FEATS
     file 'p1_val' into P1_VAL
     file 'p2_val' into P2_VAL
     file "${name}_test.csv"
     """
-    python $py --store_best best_model --output ${name}_test.csv
+    python $py --store_best best_model --output ${name}_validation.csv
     """
 }
 
@@ -205,23 +212,25 @@ a) Validation with hyper parameter choosen on different dataset
 
 */
 // a)
-BEST_MODEL_TEST.join(TRAINING_CHANNEL2).join(Meanfile3) .set{ VALIDATION_OPTIONS}
+BEST_MODEL_VAL.join(TRAINING_CHANNEL2).join(Meanfile3) .set{ TEST_OPTIONS}
 N_FEATS .map{ it.text } .set {FEATS_}
 P1_VAL  .map{ it.text } .set {P1_}
 P2_VAL  .map{ it.text } .set {P2_}
 
-process Validation {
+process Test {
     publishDir "./out_RDS/Validation/"
     input:
-    set name, file(best_model), file(py), _, __, file(mean), file(path) from VALIDATION_OPTIONS
+    set name, file(best_model), file(py), _, __, file(mean), file(path) from TEST_OPTIONS
     val feat from FEATS_ 
     val p1 from P1_
     val p2 from P2_
     output:
     file "./$name"
-    file "${name}.csv" into CSV_VAL
+    file "${name}.csv" into CSV_TEST
     """
-    python $py --mean_file $mean --path $path --log $best_model --restore $best_model --batch_size 1 --n_features ${feat} --n_threads 100 --split validation --size_test 500 --p1 ${p1} --p2 ${p2} --output ${name}.csv --save_path $name
+    python $py --mean_file $mean --path $path --log $best_model --restore $best_model \\ 
+               --batch_size 1 --n_features ${feat} --n_threads 100 --split validation \\ 
+               --size_test 996 --p1 ${p1} --p2 ${p2} --output ${name}.csv --save_path $name
     """
 }
 
@@ -230,11 +239,11 @@ PLOT = file('src_RealData/postprocessing/plot.py')
 process Plot {
     publishDir "./out_RDS/Validation/"
     input:
-    file _ from CSV_VAL .collect()
+    file _ from CSV_TEST .collect()
     file py from PLOT
     output:
     file "BarResult_train_test_val.png"
     """
-    python $py --output BarResult_train_test_val.png --output_csv Result_train_test_val.csv
+    python $py --output BarResult_train_val_test.png --output_csv Result_train_val_test.csv
     """
 }

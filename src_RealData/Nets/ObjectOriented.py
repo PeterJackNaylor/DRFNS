@@ -31,7 +31,8 @@ class ConvolutionalNeuralNetwork:
         DEBUG=True,
         WEIGHT_DECAY=0.00005,
         LOSS_FUNC=tf.nn.l2_loss,
-        N_FEATURES=16):
+        N_FEATURES=16,
+        EARLY_STOPPING=10):
 
         self.LEARNING_RATE = LEARNING_RATE
         self.K = K
@@ -40,7 +41,6 @@ class ConvolutionalNeuralNetwork:
         self.NUM_LABELS = NUM_LABELS
         self.NUM_CHANNELS = NUM_CHANNELS
         self.N_FEATURES = N_FEATURES
-#        self.NUM_TEST = NUM_TEST
         self.STEPS = STEPS
         self.N_PRINT = N_PRINT
         self.LRSTEP = LRSTEP
@@ -58,6 +58,7 @@ class ConvolutionalNeuralNetwork:
         self.init_vars()
         self.init_model_architecture()
         self.init_training_graph()
+        self.early_stopping_max = EARLY_STOPPING
         self.Saver()
         self.DEBUG = DEBUG
         self.loss_func = LOSS_FUNC
@@ -429,7 +430,7 @@ class ConvolutionalNeuralNetwork:
         Defining the saver, it will load if possible.
         """
         print("Setting up Saver...")
-        self.saver = tf.train.Saver()
+        self.saver = tf.train.Saver(max_to_keep=(self.early_stopping_max + 1))
         ckpt = tf.train.get_checkpoint_state(self.LOG)
         if ckpt and ckpt.model_checkpoint_path:
             self.saver.restore(self.sess, ckpt.model_checkpoint_path)
@@ -498,3 +499,9 @@ class ConvolutionalNeuralNetwork:
                 print('  Mini-batch loss: %.5f \n       Accuracy: %.1f%% \n       acc1: %.1f%% \n       recall: %1.f%% \n       prec: %1.f%% \n       f1 : %1.f%% \n' % 
                       (l, acc, acc1, recall, prec, f1))
                 self.Validation(DGTest, step)
+    def predict(self, tensor):
+        feed_dict = {self.input_node: tensor,
+                     self.is_training: False}
+        pred = self.sess.run(self.predictions,
+                            feed_dict=feed_dict)
+        return pred

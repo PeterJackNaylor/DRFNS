@@ -31,64 +31,15 @@ class UNetDistance(UNetBatchNorm):
         N_EPOCH=1,
         N_THREADS=1,
         MEAN_FILE=None,
-        DROPOUT=0.5):
+        DROPOUT=0.5,
+        EARLY_STOPPING=10):
 
-        self.LEARNING_RATE = LEARNING_RATE
-        self.K = K
-        self.BATCH_SIZE = BATCH_SIZE
-        self.IMAGE_SIZE = IMAGE_SIZE
-        self.NUM_CHANNELS = NUM_CHANNELS
-        self.N_FEATURES = N_FEATURES
-        self.STEPS = STEPS
-        self.N_PRINT = N_PRINT
-        self.LRSTEP = LRSTEP
-        self.DECAY_EMA = DECAY_EMA
-        self.LOG = LOG
-        self.SEED = SEED
-        self.N_EPOCH = N_EPOCH
-        self.N_THREADS = N_THREADS
-        self.DROPOUT = DROPOUT
-        self.MEAN_FILE = MEAN_FILE
-        if MEAN_FILE is not None:
-            MEAN_ARRAY = tf.constant(np.load(MEAN_FILE), dtype=tf.float32) # (3)
-            self.MEAN_ARRAY = tf.reshape(MEAN_ARRAY, [1, 1, 3])
-            self.SUB_MEAN = True
-        else:
-            self.SUB_MEAN = False
+        UNetBatchNorm.__init__(TF_RECORDS, LEARNING_RATE, K, 
+            BATCH_SIZE, IMAGE_SIZE, 1, NUM_CHANNELS,
+            NUM_TEST, STEPS, LRSTEP, DECAY_EMA, N_PRINT, LOG, 
+            SEED, DEBUG, WEIGHT_DECAY, LOSS_FUNC, N_FEATURES,
+             N_EPOCH, N_THREADS, MEAN_FILE, DROPOUT, EARLY_STOPPING)
 
-        self.sess = tf.InteractiveSession()
-
-        self.sess.as_default()
-        
-        self.var_to_reg = []
-        self.var_to_sum = []
-        self.TF_RECORDS = TF_RECORDS
-        self.init_queue(TF_RECORDS)
-
-        self.init_vars()
-        self.init_model_architecture()
-        self.init_training_graph()
-        self.Saver()
-        self.DEBUG = DEBUG
-        self.loss_func = LOSS_FUNC
-        self.weight_decay = WEIGHT_DECAY
-
-    def init_queue(self, tfrecords_filename):
-        """
-        Added the number of channels to extract to
-        """
-        self.filename_queue = tf.train.string_input_producer(
-                              [tfrecords_filename], num_epochs=10)
-        with tf.device('/cpu:0'):
-            self.image, self.annotation = read_and_decode(self.filename_queue, 
-                                                          self.IMAGE_SIZE[0], 
-                                                          self.IMAGE_SIZE[1],
-                                                          self.BATCH_SIZE,
-                                                          self.N_THREADS,
-                                                          True,
-                                                          self.NUM_CHANNELS)
-            #self.annotation = tf.divide(self.annotation, 255.)
-        print("Queue initialized")
 
     def init_training_graph(self):
         """
@@ -373,7 +324,7 @@ class UNetDistance(UNetBatchNorm):
         self.optimization(trainable_var)
         self.ExponentialMovingAverage(trainable_var, self.DECAY_EMA)
         init_op = tf.group(tf.global_variables_initializer(),
-                   tf.local_variables_initializer())
+                   tf.local_variables_initializer(), self.data_init)
         self.sess.run(init_op)
         self.regularize_model()
 
@@ -389,8 +340,6 @@ class UNetDistance(UNetBatchNorm):
         steps = self.STEPS
 
         print "self.global step", int(self.global_step.eval())
-        coord = tf.train.Coordinator()
-        threads = tf.train.start_queue_runners(coord=coord)
         begin = int(self.global_step.eval())
         print "begin", begin
         for step in range(begin, steps + begin):  
@@ -409,11 +358,3 @@ class UNetDistance(UNetBatchNorm):
                 print('  Mini-batch loss: %.5f \n ') % l
                 print('  Max value: %.5f \n ') % np.max(predictions)
                 self.Validation(DGTest, step)
-        coord.request_stop()
-        coord.join(threads)
-    def predict(self, tensor):
-        feed_dict = {self.input_node: tensor,
-                     self.is_training: False}
-        pred = self.sess.run(self.predictions,
-                            feed_dict=feed_dict)
-        return pred

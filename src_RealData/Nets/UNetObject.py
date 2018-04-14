@@ -2,7 +2,6 @@ from DataTF import DataReader
 import tensorflow as tf
 import os
 import numpy as np
-from DataReadDecode import read_and_decode
 
 def print_dim(text ,tensor):
     """
@@ -16,21 +15,6 @@ class UNet(DataReader):
     UNet version for DNN, implies mostly having RGB size 
     different to the GT size.
     """
-    def init_queue(self, tfrecords_filename):
-        """
-        Different decoding for UNet
-        """
-        self.filename_queue = tf.train.string_input_producer(
-                              [tfrecords_filename], num_epochs=10)
-        with tf.device('/cpu:0'):
-            self.image, self.annotation = read_and_decode(self.filename_queue, 
-                                                          self.IMAGE_SIZE[0], 
-                                                          self.IMAGE_SIZE[1],
-                                                          self.BATCH_SIZE,
-                                                          self.N_THREADS,
-                                                          True)
-        print("Queue initialized")
-
     def WritteSummaryImages(self):
         """
         Croping UNet image so that it matches with GT.

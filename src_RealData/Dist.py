@@ -14,20 +14,18 @@ from Nets.UNetDistance import UNetDistance
 
 
 class Model(UNetDistance):
-    def test(self, p1, p2, steps):
+    def validation(self, p1, p2, steps):
         """
-        How the model tests
+        How the model validates
         """
         loss, roc = 0., 0.
         acc, F1, recall = 0., 0., 0.
         precision, jac, AJI = 0., 0., 0.
         init_op = tf.group(tf.global_variables_initializer(),
-                   tf.local_variables_initializer())
+                   tf.local_variables_initializer(), self.init_data)
         self.sess.run(init_op)
         self.Saver()
-        coord = tf.train.Coordinator()
-        threads = tf.train.start_queue_runners(coord=coord)
-
+        
         for step in range(steps):  
             feed_dict = {self.is_training: False} 
             l, prob, batch_labels = self.sess.run([self.loss, self.predictions,
@@ -45,16 +43,14 @@ class Model(UNetDistance):
             precision += out[4]
             F1 += out[5]
             AJI += out[6]
-        coord.request_stop()
-        coord.join(threads)
         loss, acc, F1 = np.array([loss, acc, F1]) / steps
         recall, precision, roc = np.array([recall, precision, roc]) / steps
         jac, AJI = np.array([jac, AJI]) / steps
         return loss, acc, F1, recall, precision, roc, jac, AJI
 
-    def validation(self, DG_TEST, p1, p2, save_path):
+    def test(self, DG_TEST, p1, p2, save_path):
         """
-        How the model validates
+        How the model test
         """
         n_test = DG_TEST.length
         n_batch = int(np.ceil(float(n_test) / self.BATCH_SIZE)) 
@@ -108,17 +104,17 @@ if __name__== "__main__":
     PATH = options.path
 
     TEST_PATIENT = ["testbreast", "testliver", "testkidney", "testprostate",
-                        "bladder", "colorectal", "stomach", "test"]
+                        "bladder", "colorectal", "stomach"]
     DG_TRAIN = DataGenMulti(PATH, split='train', crop = 16, size=SIZE,
                        transforms=transform_list, UNet=True, mean_file=None, num=TEST_PATIENT)
-    TEST_PATIENT = ["test"]
-    DG_TEST  = DataGenMulti(PATH, split="test", crop = 1, size=(500, 500), 
+    TEST_PATIENT = ["validation"]
+    DG_TEST  = DataGenMulti(PATH, split="test", crop = 1, size=(996, 996), 
                        transforms=transform_list_test, UNet=True, mean_file=MEAN_FILE, num=TEST_PATIENT)
     if SPLIT == "train":
         N_ITER_MAX = N_EPOCH * DG_TRAIN.length // BATCH_SIZE
-    elif SPLIT == "test":
-        N_ITER_MAX = N_EPOCH * DG_TEST.length // BATCH_SIZE
     elif SPLIT == "validation":
+        N_ITER_MAX = N_EPOCH * DG_TEST.length // BATCH_SIZE
+    elif SPLIT == "test":
         LOG = glob(os.path.join(LOG, '*'))[0]
     model = Model(TFRecord,            LEARNING_RATE=LEARNING_RATE,
                                        BATCH_SIZE=BATCH_SIZE,
@@ -137,19 +133,19 @@ if __name__== "__main__":
                                        DROPOUT=DROPOUT)
     if SPLIT == "train":
         model.train(DG_TEST)
-    elif SPLIT == "test":
+    elif SPLIT == "validation":
         p1 = options.p1
         p2 = options.p2
         file_name = options.output
         f = open(file_name, 'w')
-        outs = model.test(p1, p2, N_ITER_MAX)
+        outs = model.validation(p1, p2, N_ITER_MAX)
         outs = [LOG] + list(outs) + [p1, p2]
         NAMES = ["ID", "Loss", "Acc", "F1", "Recall", "Precision", "ROC", "Jaccard", "AJI", "p1", "p2"]
         f.write('{},{},{},{},{},{},{},{},{},{},{}\n'.format(*NAMES))
 
         f.write('{},{},{},{},{},{},{},{},{},{},{}\n'.format(*outs))
 
-    elif SPLIT == "validation":
+    elif SPLIT == "test":
 
         TEST_PATIENT = ["testbreast", "testliver", "testkidney", "testprostate",
                         "bladder", "colorectal", "stomach"]
@@ -165,7 +161,7 @@ if __name__== "__main__":
                            transforms=transform_list_test, UNet=True, mean_file=MEAN_FILE)
             save_organ = os.path.join(options.save_path, organ)
             CheckOrCreate(save_organ)
-            outs = model.validation(DG_TEST, options.p1, options.p2, save_organ)
+            outs = model.test(DG_TEST, options.p1, options.p2, save_organ)
             for i in range(len(outs)):
                 small_o = outs[i]
                 small_o = [i, organ] + small_o + [options.p1, options.p2]

@@ -4,13 +4,17 @@
 from UNetBatchNorm import UNetBatchNorm
 import tensorflow as tf
 import numpy as np
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, f1_score
 from datetime import datetime
 from DataReadDecode import read_and_decode
 from utils import ComputeMetrics
 import os
 from Net_Utils import EarlyStopper
 
+def computeF1(P, GT, t):
+    P = P > t
+    GT = GT > t
+    return f1_score(P, GT, pos_label=True)
 
 class UNetDistance(UNetBatchNorm):
     def __init__(
@@ -307,14 +311,7 @@ class UNetDistance(UNetBatchNorm):
                                                 self.merged_summary],
                                                 feed_dict=feed_dict)
                 loss += l_tmp
-                out = ComputeMetrics(pred[0], Yval[0], 1, 0.5)
-                acc += out[0]
-                roc += out[1]
-                jac += out[2]
-                recall += out[3]
-                precision += out[4]
-                F1 += out[5]
-                AJI += out[6]
+                F1 += computeF1(pred, Yval, 0.5)
 
 
             loss, acc, F1 = np.array([loss, acc, F1]) / n_test
@@ -338,7 +335,7 @@ class UNetDistance(UNetBatchNorm):
         output = os.path.join(self.LOG, "data_collector.csv")
         look_behind = self.early_stopping_max
         early_stop = EarlyStopper(track, output, maximum=look_behind)
-        
+
         epoch = self.STEPS * self.BATCH_SIZE // self.N_EPOCH
         self.Saver()
         trainable_var = tf.trainable_variables()

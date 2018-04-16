@@ -91,7 +91,7 @@ if __name__== "__main__":
         SIZE = (options.size_test, options.size_test)
     N_ITER_MAX = 0 ## defined later
     LRSTEP = "10epoch"
-    N_TRAIN_SAVE = 1000
+    N_TRAIN_SAVE = 100
     LOG = options.log
     WEIGHT_DECAY = options.weight_decay
     N_FEATURES = options.n_features
@@ -104,9 +104,9 @@ if __name__== "__main__":
     PATH = options.path
 
     TEST_PATIENT = ["testbreast", "testliver", "testkidney", "testprostate",
-                        "bladder", "colorectal", "stomach"]
+                        "bladder", "colorectal", "stomach", "validation"]
     DG_TRAIN = DataGenMulti(PATH, split='train', crop = 16, size=SIZE,
-                       transforms=transform_list, UNet=True, mean_file=None, num=TEST_PATIENT)
+                       transforms=transform_list_test, UNet=True, mean_file=None, num=TEST_PATIENT)
     TEST_PATIENT = ["validation"]
     DG_TEST  = DataGenMulti(PATH, split="test", crop = 1, size=(996, 996), 
                        transforms=transform_list_test, UNet=True, mean_file=MEAN_FILE, num=TEST_PATIENT)
@@ -130,7 +130,8 @@ if __name__== "__main__":
                                        N_EPOCH=N_EPOCH,
                                        N_THREADS=N_THREADS,
                                        MEAN_FILE=MEAN_FILE,
-                                       DROPOUT=DROPOUT)
+                                       DROPOUT=DROPOUT,
+                                       EARLY_STOPPING=20)
     if SPLIT == "train":
         model.train(DG_TEST)
     elif SPLIT == "validation":

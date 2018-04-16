@@ -39,7 +39,7 @@ class UNet(DataReader):
         self.image_PH = tf.placeholder_with_default(self.images_queue, shape=[None,
                                                                               None, 
                                                                               None,
-                                                                              3])
+                                                                              self.NUM_CHANNELS])
         return self.image_PH
 
     def conv_layer_f(self, i_layer, w_var, scope_name="conv", strides=[1,1,1,1], padding="VALID"):

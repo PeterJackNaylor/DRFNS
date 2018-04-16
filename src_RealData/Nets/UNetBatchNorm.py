@@ -212,5 +212,5 @@ class UNetBatchNorm(UNet):
                 values_test = self.Validation(DG_TEST, step)
                 names_test = ["Loss", "Acc", "AccMean", "Recall", "Precision", "F1", "wgt_path"]
                 if early_stop.DataCollectorStopper(values_test, names_test, step):
-		    break
+                    break
         early_stop.save()

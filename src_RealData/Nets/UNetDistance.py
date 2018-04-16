@@ -7,6 +7,10 @@ import numpy as np
 from sklearn.metrics import mean_squared_error
 from datetime import datetime
 from DataReadDecode import read_and_decode
+from utils import ComputeMetrics
+import os
+from Net_Utils import EarlyStopper
+
 
 class UNetDistance(UNetBatchNorm):
     def __init__(
@@ -289,10 +293,10 @@ class UNetDistance(UNetBatchNorm):
             print "no validation"
         else:
             n_test = DG_TEST.length
-            n_batch = int(np.ceil(float(n_test) / 1)) 
-
-            l = 0.
-            for i in range(n_batch):
+            loss, roc = 0., 0.
+            acc, F1, recall = 0., 0., 0.
+            precision, jac, AJI = 0., 0., 0.
+            for i in range(n_test):
                 Xval, Yval = DG_TEST.Batch(0, 1)
                 #Yval = Yval / 255.
                 feed_dict = {self.input_node: Xval,
@@ -302,21 +306,39 @@ class UNetDistance(UNetBatchNorm):
                                                 self.predictions,
                                                 self.merged_summary],
                                                 feed_dict=feed_dict)
-                l += l_tmp
+                loss += l_tmp
+                out = ComputeMetrics(pred[0], Yval[0], 1, 0.5)
+                acc += out[0]
+                roc += out[1]
+                jac += out[2]
+                recall += out[3]
+                precision += out[4]
+                F1 += out[5]
+                AJI += out[6]
 
-            l = l / n_batch
+
+            loss, acc, F1 = np.array([loss, acc, F1]) / n_test
+            recall, precision, roc = np.array([recall, precision, roc]) / n_test
+            jac, AJI = np.array([jac, AJI]) / n_test
 
             summary = tf.Summary()
-            summary.value.add(tag="TestMan/Loss", simple_value=l)
+            summary.value.add(tag="TestMan/Loss", simple_value=loss)
+            summary.value.add(tag="TestMan/F1", simple_value=F1)
             self.summary_test_writer.add_summary(summary, step) 
             self.summary_test_writer.add_summary(s, step) 
-            print('  Validation loss: %.1f' % l)
+            print('  Validation loss: %.1f, F1: %.2f' % loss, F1)
             self.saver.save(self.sess, self.LOG + '/' + "model.ckpt", step)
-
+            wgt_path = self.LOG + '/' + "model.ckpt-{}".format(step)
+            return loss, acc, F1, recall, precision, roc, jac, AJI, wgt_path
     def train(self, DGTest):
         """
         How the model trains.
         """
+        track = "F1"
+        output = os.path.join(self.LOG, "data_collector.csv")
+        look_behind = self.early_stopping_max
+        early_stop = EarlyStopper(track, output, maximum=look_behind)
+        
         epoch = self.STEPS * self.BATCH_SIZE // self.N_EPOCH
         self.Saver()
         trainable_var = tf.trainable_variables()
@@ -357,4 +379,8 @@ class UNetDistance(UNetBatchNorm):
                 print('  Learning rate: %.5f \n') % lr
                 print('  Mini-batch loss: %.5f \n ') % l
                 print('  Max value: %.5f \n ') % np.max(predictions)
-                self.Validation(DGTest, step)
+                values_test = self.Validation(DGTest, step)
+                names_test = ["Loss", "Acc", "AccMean", "Recall", "Precision", "F1", "wgt_path"]
+                if early_stop.DataCollectorStopper(values_test, names_test, step):
+                    break
+        early_stop.save()

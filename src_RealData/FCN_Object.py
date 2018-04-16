@@ -44,7 +44,7 @@ class FCN8():
         Setup record reading.
         """
         filename_queue = tf.train.string_input_producer(
-                                    [self.record], num_epochs=10)
+                                    [self.record], num_epochs=1000)
 
         self.image, self.annotation = read_tfrecord_and_decode_into_image_annotation_pair_tensors(filename_queue)
         self.resized_image, resized_annotation = scale_randomly_image_with_annotation_with_fixed_size_output(self.image, self.annotation, (self.size, self.size))

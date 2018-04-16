@@ -65,9 +65,7 @@ process CreateRecords {
     output:
     set val("${name}"), val("${op[0]}"), file("${op[0]}_${name}.tfrecords") into NSR0, NSR1, NSR2
     """
-    python $py --tf_record ${op[0]}_${name}.tfrecords --split ${op[0]} \\ 
-               --path $path --crop ${op[1]} $unet --size_train $size_train \\
-               --size_test ${op[2]} --seed 42 --epoch 1 --type JUST_READ 
+    python $py --tf_record ${op[0]}_${name}.tfrecords --split ${op[0]} --path $path --crop ${op[1]} $unet --size_train $size_train --size_test ${op[2]} --seed 42 --epoch 1 --type JUST_READ 
     """
 }
 
@@ -99,11 +97,11 @@ In outputs:
 a set with the name, the parameters of the model
 */
 
-ITERVAL = 50
-ITER8 = 108 // 10800
-LEARNING_RATE = [0.01]//, 0.001, 0.0001, 0.00001, 0.000001]
-FEATURES = [16]//, 32, 64]
-WEIGHT_DECAY = [0.00005]//, 0.0005]
+ITERVAL = 4
+ITER8 = 10800
+LEARNING_RATE = [0.001, 0.0001, 0.00001]//, 0.000001]
+FEATURES = [16, 32]//, 64]
+WEIGHT_DECAY = [0.00005, 0.0005]
 BS = 10
 
 Unet_file = file('src_RealData/UNet.py')
@@ -119,7 +117,6 @@ PRETRAINED_8 = file(params.image_dir + "/pretrained/checkpoint16/")
 TRAIN_REC.join(TRAINING_CHANNEL).join(MeanFile) .set {TRAINING_OPTIONS}
 
 process Training {
-    maxForks 2
     beforeScript "source \$HOME/CUDA_LOCK/.whichNODE"
     afterScript "source \$HOME/CUDA_LOCK/.freeNODE"
     input:
@@ -136,10 +133,7 @@ process Training {
     "$name" != "FCN" || ("$feat" == "${FEATURES[0]}" && "$wd" == "${WEIGHT_DECAY[0]}")
     script:
     """
-    python $py --tf_record $rec --path $path  --log ${name}__${feat}_${wd}_${lr} \\
-               --learning_rate $lr --batch_size $bs --epoch $epoch --n_features $feat \\
-               --weight_decay $wd --mean_file ${mean} --n_threads 100 --restore $__ \\ 
-               --size_train $size --split $split --iters $iters
+    python $py --tf_record $rec --path $path  --log ${name}__${feat}_${wd}_${lr} --learning_rate $lr --batch_size $bs --epoch $epoch --n_features $feat --size_train $size --weight_decay $wd --mean_file ${mean} --n_threads 100 --restore $__  --split $split --iters $iters
     """
 } 
 
@@ -155,7 +149,6 @@ VAL_REC.cross(RESULT_TRAIN).map{ first, second -> [first, second.drop(1)].flatte
 Meanfile2.cross(VAL_OPTIONS_pre).map { first, second -> [first, second.drop(1)].flatten() } .into{VAL_OPTIONS;VAL_OPTIONS2}
 
 process Validation {
-    maxForks 2
     beforeScript "source \$HOME/CUDA_LOCK/.whichNODE"
     afterScript "source \$HOME/CUDA_LOCK/.freeNODE"
     input:
@@ -170,9 +163,7 @@ process Validation {
     ("$name" =~ "DIST" && p1 < 6) || ( !("$name" =~ "DIST") && p2 == P2[0] && p1 > 5)
     script:
     """
-    python $py --tf_record $rec --path $path  --log $model --batch_size 1 --n_features $feat \\ 
-               --mean_file ${mean} --n_threads 100 --split $split --size_test 996 --p1 ${p1} \\ 
-               --p2 ${p2} --restore $model --iters $iters --output ${name}__${feat}_${wd}_${lr}_${p1}_${p2}.csv
+    python $py --tf_record $rec --path $path  --log $model --batch_size 1 --n_features $feat --mean_file ${mean} --n_threads 100 --split $split --size_test 996 --p1 ${p1} --p2 ${p2} --restore $model --iters $iters --output ${name}__${feat}_${wd}_${lr}_${p1}_${p2}.csv
     """  
 
 }
@@ -228,9 +219,7 @@ process Test {
     file "./$name"
     file "${name}.csv" into CSV_TEST
     """
-    python $py --mean_file $mean --path $path --log $best_model --restore $best_model \\ 
-               --batch_size 1 --n_features ${feat} --n_threads 100 --split validation \\ 
-               --size_test 996 --p1 ${p1} --p2 ${p2} --output ${name}.csv --save_path $name
+    python $py --mean_file $mean --path $path --log $best_model --restore $best_model --batch_size 1 --n_features ${feat} --n_threads 100 --split validation --size_test 996 --p1 ${p1} --p2 ${p2} --output ${name}.csv --save_path $name
     """
 }
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
+import pdb
 import numpy as np
 import pandas as pd
 import os
@@ -37,9 +37,8 @@ class EarlyStopper(object):
         """
         
 
-        for name, val in zip(values, names):
+        for val, name in zip(values, names):
             self.DataCollector.loc[step, name] = val
-
         if self.EarlyStop(self.DataCollector, self.track, self.eps):
             best_wgt = np.array(self.DataCollector[path_var])[-(self.early_stopping_max + 1)]
             LOG = os.path.dirname(best_wgt)
@@ -48,7 +47,8 @@ class EarlyStopper(object):
             os.symlink(best_wgt + ".index", make_it_seem_new + ".index")
             os.symlink(best_wgt + ".meta", make_it_seem_new + ".meta")
             self.EARLY_STOP = True
-            break
+        return self.EARLY_STOP
+	
 
     def save(self):
         self.DataCollector.to_csv(self.output_name)

@@ -34,7 +34,7 @@ class UNetDistance(UNetBatchNorm):
         DROPOUT=0.5,
         EARLY_STOPPING=10):
 
-        UNetBatchNorm.__init__(TF_RECORDS, LEARNING_RATE, K, 
+        UNetBatchNorm.__init__(self, TF_RECORDS, LEARNING_RATE, K, 
             BATCH_SIZE, IMAGE_SIZE, 1, NUM_CHANNELS,
             NUM_TEST, STEPS, LRSTEP, DECAY_EMA, N_PRINT, LOG, 
             SEED, DEBUG, WEIGHT_DECAY, LOSS_FUNC, N_FEATURES,

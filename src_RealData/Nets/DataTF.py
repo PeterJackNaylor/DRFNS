@@ -51,9 +51,10 @@ class DataReader(ConvolutionalNeuralNetwork):
         else:
             self.SUB_MEAN = False
         self.TF_RECORDS = TF_RECORDS
+        self.IMAGE_SIZE = IMAGE_SIZE
+        self.BATCH_SIZE = BATCH_SIZE
         self.init_queue(TF_RECORDS)
-
-        ConvolutionalNeuralNetwork.__init__(LEARNING_RATE, K, 
+        ConvolutionalNeuralNetwork.__init__(self, LEARNING_RATE, K, 
             BATCH_SIZE, IMAGE_SIZE, NUM_LABELS, NUM_CHANNELS, 
             NUM_TEST, STEPS, LRSTEP, DECAY_EMA, N_PRINT, LOG, 
             SEED, DEBUG, WEIGHT_DECAY, LOSS_FUNC, N_FEATURES,
@@ -63,10 +64,8 @@ class DataReader(ConvolutionalNeuralNetwork):
         """
         New queues for coordinator
         """
-        self.filename_queue = tf.train.string_input_producer(
-                              [tfrecords_filename], num_epochs=10)
         with tf.device('/cpu:0'):
-            self.data_init, self.image, self.annotation = read_and_decode(self.filename_queue, 
+            self.data_init, self.image, self.annotation = read_and_decode(tfrecords_filename, 
                                                           self.IMAGE_SIZE[0], 
                                                           self.IMAGE_SIZE[1],
                                                           self.BATCH_SIZE,

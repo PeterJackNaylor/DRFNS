@@ -20,12 +20,12 @@ if __name__ == '__main__':
     transf, transf_test = ListTransform()
 
     size = (1000, 1000)
-    size_test = (512, 512)
+    size_test = (1000, 1000)
     crop = 1
     DG = DataGenMulti(path, crop=crop, size=size, transforms=transf_test,
-                 split="train", num="test")
+                 split="train", num="validation")
     DG_test = DataGenMulti(path, crop=crop, size=size_test, transforms=transf_test,
-                 split="test", num="test")
+                 split="test", num="validation")
     res = np.zeros(shape=3, dtype='float')
     count = 0
     for i in range(DG.length):

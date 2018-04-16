@@ -4,7 +4,7 @@ import tensorflow as tf
 import numpy as np
 from datetime import datetime
 import os
-from Net_utils import EarlyStopper
+from Net_Utils import EarlyStopper
 
 class UNetBatchNorm(UNet):
     """
@@ -200,7 +200,7 @@ class UNetBatchNorm(UNet):
                          self.train_prediction, self.train_labels_node,
                          self.merged_summary])
 
-            if step % self.N_PRINT == 0:
+            if step % self.N_PRINT == 0 and step != 0:
                 i = datetime.now()
                 print i.strftime('%Y/%m/%d %H:%M:%S: \n ')
                 self.summary_writer.add_summary(s, step)                
@@ -211,5 +211,6 @@ class UNetBatchNorm(UNet):
                      (l, acc, acc1, recall, prec, f1))
                 values_test = self.Validation(DG_TEST, step)
                 names_test = ["Loss", "Acc", "AccMean", "Recall", "Precision", "F1", "wgt_path"]
-                early_stop.DataCollectorStopper(values_test, names_test, step)
+                if early_stop.DataCollectorStopper(values_test, names_test, step):
+		    break
         early_stop.save()

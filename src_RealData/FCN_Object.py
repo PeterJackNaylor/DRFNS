@@ -17,6 +17,7 @@ import numpy as np
 from scipy import misc
 slim = tf.contrib.slim
 from utils import ComputeMetrics
+import pdb
 
 class FCN8():
     """
@@ -35,7 +36,7 @@ class FCN8():
         self.setup_record()
         self.class_labels = range(num_labels)
         self.class_labels.append(255)
-        if split != "validation":
+        if split != "test":
             self.fcn_8s_checkpoint_path = glob(self.checkpoint8 + "/*.data*")[0].split(".data")[0]
         else:
             self.setup_test(record)

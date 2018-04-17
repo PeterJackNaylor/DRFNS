@@ -174,7 +174,7 @@ In inputs: name, all result_test.csv per key
 In outputs: name, best_model, p1, p2
 */
 // a)
-REGROUP = file('src_RealData/postprocessing/regroup.py')
+REGROUP = file('src_RealData/postproc/regroup.py')
 RESULT_VAL  .groupTuple() 
              .set { KEY_CSV }
 RESULT_TRAIN2.map{name, model, py, feat, wd, lr -> [name, model]} .groupTuple() . set {ALL_MODELS}
@@ -191,7 +191,7 @@ process GetBestPerKey {
     file 'feat_val' into N_FEATS
     file 'p1_val' into P1_VAL
     file 'p2_val' into P2_VAL
-    file "${name}_test.csv"
+    file "${name}_validation.csv"
     """
     python $py --store_best best_model --output ${name}_validation.csv
     """
@@ -209,7 +209,9 @@ P1_VAL  .map{ it.text } .set {P1_}
 P2_VAL  .map{ it.text } .set {P2_}
 
 process Test {
-    publishDir "./out_RDS/Validation/"
+    beforeScript "source \$HOME/CUDA_LOCK/.whichNODE"
+    afterScript "source \$HOME/CUDA_LOCK/.freeNODE"
+    publishDir "./out_RDS/Test/"
     input:
     set name, file(best_model), file(py), _, __, file(mean), file(path) from TEST_OPTIONS
     val feat from FEATS_ 
@@ -219,11 +221,11 @@ process Test {
     file "./$name"
     file "${name}.csv" into CSV_TEST
     """
-    python $py --mean_file $mean --path $path --log $best_model --restore $best_model --batch_size 1 --n_features ${feat} --n_threads 100 --split validation --size_test 996 --p1 ${p1} --p2 ${p2} --output ${name}.csv --save_path $name
+    python $py --mean_file $mean --path $path --log $best_model --restore $best_model --batch_size 1 --n_features ${feat} --n_threads 100 --split test --size_test 996 --p1 ${p1} --p2 ${p2} --output ${name}.csv --save_path $name
     """
 }
 
-PLOT = file('src_RealData/postprocessing/plot.py')
+PLOT = file('src_RealData/postproc/plot.py')
 
 process Plot {
     publishDir "./out_RDS/Validation/"

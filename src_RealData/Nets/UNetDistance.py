@@ -12,9 +12,9 @@ import os
 from Net_Utils import EarlyStopper
 
 def computeF1(P, GT, t):
-    P = P > t
-    GT = GT > t
-    return f1_score(P, GT, pos_label=True)
+    P = (P > t).astype('uint8').flatten()
+    GT = (GT > t).astype('uint8').flatten()
+    return f1_score(P, GT, pos_label=1)
 
 class UNetDistance(UNetBatchNorm):
     def __init__(
@@ -297,9 +297,7 @@ class UNetDistance(UNetBatchNorm):
             print "no validation"
         else:
             n_test = DG_TEST.length
-            loss, roc = 0., 0.
-            acc, F1, recall = 0., 0., 0.
-            precision, jac, AJI = 0., 0., 0.
+            loss, F1= 0., 0.
             for i in range(n_test):
                 Xval, Yval = DG_TEST.Batch(0, 1)
                 #Yval = Yval / 255.
@@ -314,19 +312,17 @@ class UNetDistance(UNetBatchNorm):
                 F1 += computeF1(pred, Yval, 0.5)
 
 
-            loss, acc, F1 = np.array([loss, acc, F1]) / n_test
-            recall, precision, roc = np.array([recall, precision, roc]) / n_test
-            jac, AJI = np.array([jac, AJI]) / n_test
+            loss, F1 = np.array([loss, F1]) / n_test
 
             summary = tf.Summary()
             summary.value.add(tag="TestMan/Loss", simple_value=loss)
             summary.value.add(tag="TestMan/F1", simple_value=F1)
             self.summary_test_writer.add_summary(summary, step) 
             self.summary_test_writer.add_summary(s, step) 
-            print('  Validation loss: %.1f, F1: %.2f' % loss, F1)
+            print('  Validation loss: %.1f, F1: %.2f' % (loss, F1))
             self.saver.save(self.sess, self.LOG + '/' + "model.ckpt", step)
             wgt_path = self.LOG + '/' + "model.ckpt-{}".format(step)
-            return loss, acc, F1, recall, precision, roc, jac, AJI, wgt_path
+            return loss, F1, wgt_path
     def train(self, DGTest):
         """
         How the model trains.
@@ -377,7 +373,7 @@ class UNetDistance(UNetBatchNorm):
                 print('  Mini-batch loss: %.5f \n ') % l
                 print('  Max value: %.5f \n ') % np.max(predictions)
                 values_test = self.Validation(DGTest, step)
-                names_test = ["Loss", "Acc", "AccMean", "Recall", "Precision", "F1", "wgt_path"]
+                names_test = ["Loss", "F1", "wgt_path"]
                 if early_stop.DataCollectorStopper(values_test, names_test, step):
                     break
         early_stop.save()

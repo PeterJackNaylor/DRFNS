@@ -181,7 +181,7 @@ RESULT_TRAIN2.map{name, model, py, feat, wd, lr -> [name, model]} .groupTuple() 
 KEY_CSV .join(ALL_MODELS) .set {KEY_CSV_MODEL}
 
 process GetBestPerKey {
-    publishDir "./out_RDS/Test_tables/" , pattern: "*.csv"
+    publishDir "./out_RDS/Validation_tables/" , pattern: "*.csv"
     input:
     file py from REGROUP
     set name, file(csv), file(model) from KEY_CSV_MODEL

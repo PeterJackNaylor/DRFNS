@@ -32,12 +32,12 @@ BinToDistanceFile = file('src_RealData/preproc/BinToDistance.py')
 process BinToDistance {
     input:
     file py from BinToDistanceFile
-    file toannotate from IMAGE_FOLD
+    file path from IMAGE_FOLD
     output:
     set val("DIST"), file("ToAnnotateDistance") into DISTANCE_FOLD, DISTANCE_FOLD2
 
     """
-    python $py $toannotate
+    python $py $path
     """
 }
 

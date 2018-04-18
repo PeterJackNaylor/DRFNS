@@ -3,8 +3,7 @@
 // General parameters
 params.image_dir = './datafolder'
 params.epoch = 1
-IMAGE_FOLD = file(params.image_dir + "/ForDataGenTrainTestVal")
-
+IMAGE_FOLD = file(params.image_dir + "/Normalized_ForDataGenTrainTestVal")
 /*          0) a) Resave all the images so that they have 1 for label instead of 255 
             0) b) Resave all the images so that they are distance map
 In outputs:

@@ -88,7 +88,11 @@ if __name__== "__main__":
         SIZE = (options.size_test, options.size_test)
     N_ITER_MAX = 0 ## defined later
     LRSTEP = "10epoch"
-    N_TRAIN_SAVE = 100
+    if SPLIT == "train":
+        samples_per_epoch = len([0 for record in tf.python_io.tf_record_iterator(options.TFRecord)] )
+        N_TRAIN_SAVE = samples_per_epoch // BATCH_SIZE
+    else:
+        N_TRAIN_SAVE = 100
     LOG = options.log
     WEIGHT_DECAY = options.weight_decay
     N_FEATURES = options.n_features

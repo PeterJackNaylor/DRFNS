@@ -135,8 +135,10 @@ if __name__== "__main__":
                                        N_THREADS=N_THREADS,
                                        MEAN_FILE=MEAN_FILE,
                                        DROPOUT=DROPOUT,
-                                       EARLY_STOPPING=20)
+                                       EARLY_STOPPING=30)
     if SPLIT == "train":
+        DG_TEST  = DataGenMulti(PATH, split="test", crop = 16, size=SIZE,
+                           transforms=transform_list_test, UNet=True, mean_file=MEAN_FILE, num=TEST_PATIENT)
         model.train(DG_TEST)
     elif SPLIT == "validation":
         p1 = options.p1

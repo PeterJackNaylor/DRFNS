@@ -135,7 +135,7 @@ if __name__== "__main__":
                                        N_THREADS=N_THREADS,
                                        MEAN_FILE=MEAN_FILE,
                                        DROPOUT=DROPOUT,
-                                       EARLY_STOPPING=20)
+                                       EARLY_STOPPING=40)
     if SPLIT == "train":
         model.train(DG_TEST)
     elif SPLIT == "validation":

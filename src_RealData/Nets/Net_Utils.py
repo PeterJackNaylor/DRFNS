@@ -50,5 +50,12 @@ class EarlyStopper(object):
         return self.EARLY_STOP
 	
 
-    def save(self):
+    def save(self, path_var="wgt_path"):
         self.DataCollector.to_csv(self.output_name)
+        step = self.DataCollector.index.argmax()
+        best_wgt = np.array(self.DataCollector[path_var])[-(self.early_stopping_max + 1)]
+        LOG = os.path.dirname(best_wgt)
+        make_it_seem_new = LOG + '/' + "model.ckpt-{}".format(step+10)
+        os.symlink(best_wgt + ".data-00000-of-00001", make_it_seem_new + ".data-00000-of-00001")
+        os.symlink(best_wgt + ".index", make_it_seem_new + ".index")
+        os.symlink(best_wgt + ".meta", make_it_seem_new + ".meta")

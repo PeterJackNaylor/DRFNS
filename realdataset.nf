@@ -99,8 +99,8 @@ a set with the name, the parameters of the model
 ITERVAL = 4
 ITER8 = 10800
 LEARNING_RATE = [0.001, 0.0001, 0.00001]//, 0.000001]
-FEATURES = [16, 32]//, 64]
-WEIGHT_DECAY = [0.00005, 0.0005]
+FEATURES = [16, 32, 64]
+WEIGHT_DECAY = [0.000005, 0.00005, 0.0005]
 BS = 10
 
 Unet_file = file('src_RealData/UNet.py')

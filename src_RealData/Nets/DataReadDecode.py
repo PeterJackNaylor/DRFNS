@@ -332,15 +332,14 @@ def read_and_decode(filename_queue, IMAGE_HEIGHT, IMAGE_WIDTH,
     
 
 if __name__ == '__main__':
-    filenames = 'UNet4.tfrecords'
+    filenames = 'train_UNet.tfrecords'
 
-    init_data, img_b, lab_b = read_and_decode(filenames, 212, 212, 1, 50, 4)
+    init_data, img_b, lab_b = read_and_decode(filenames, 212, 212, 1, 50, 3)
     sess = tf.Session()
     sess.run(init_data)
     # Compute for 100 epochs.
     for _ in range(100):
         print _
         dd, cc = sess.run([img_b, lab_b])
-        
-    pdb.set_trace()
+        pdb.set_trace()
 

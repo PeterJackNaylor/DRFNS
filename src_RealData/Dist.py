@@ -136,6 +136,7 @@ if __name__== "__main__":
                                        MEAN_FILE=MEAN_FILE,
                                        DROPOUT=DROPOUT,
                                        EARLY_STOPPING=30)
+    
     if SPLIT == "train":
         DG_TEST  = DataGenMulti(PATH, split="test", crop = 16, size=SIZE,
                            transforms=transform_list_test, UNet=True, mean_file=MEAN_FILE, num=TEST_PATIENT)

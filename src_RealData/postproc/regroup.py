@@ -21,7 +21,7 @@ for f in CSV:
     df.index = [name]
     df_list.append(df)
 table = pd.concat(df_list)
-best_index = table['F1'].argmax()
+best_index = table['AJI'].argmax()
 table.to_csv(options.output, header=True, index=True)
 tmove_name = "{}".format(best_index)
 model = "_".join(best_index.split('_')[:-2])

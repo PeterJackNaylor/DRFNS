@@ -42,7 +42,7 @@ class EarlyStopper(object):
         if self.EarlyStop(self.DataCollector, self.track, self.eps):
             best_wgt = np.array(self.DataCollector[path_var])[-(self.early_stopping_max + 1)]
             LOG = os.path.abspath(best_wgt)
-            make_it_seem_new = LOG + '/' + "model.ckpt-{}".format(step+10)
+            make_it_seem_new = LOG.split('-')[0] + str(step  +10)
             os.symlink(best_wgt + ".data-00000-of-00001", make_it_seem_new + ".data-00000-of-00001")
             os.symlink(best_wgt + ".index", make_it_seem_new + ".index")
             os.symlink(best_wgt + ".meta", make_it_seem_new + ".meta")

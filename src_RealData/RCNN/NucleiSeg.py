@@ -41,7 +41,7 @@ from imgaug import augmenters as iaa
 from glob import glob
 
 # Root directory of the project
-ROOT_DIR = os.path.abspath("MaskRCNN/")
+ROOT_DIR = os.path.abspath("Mask_RCNN/")
 
 # Import Mask RCNN
 sys.path.append(ROOT_DIR)  # To find local version of the library
@@ -65,7 +65,7 @@ RESULTS_DIR = os.path.join(ROOT_DIR, "results/nucleus/")
 # a variety of images to surve as a validation set.
 N_VAL_IMAGE_IDS = 4
 N_TRAIN_ = 12 
-MEAN_FILE = ".npy"
+MEAN_FILE = "mean_file.npy"
 ############################################################
 #  Configurations
 ############################################################
@@ -83,7 +83,7 @@ class NucleiSegConfig(Config):
 
     # Number of training and validation steps per epoch
     STEPS_PER_EPOCH = N_TRAIN_ // IMAGES_PER_GPU
-    VALIDATION_STEPS = N_VAL_IMAGE_IDS // IMAGES_PER_GPU
+    VALIDATION_STEPS = max(1, N_VAL_IMAGE_IDS // IMAGES_PER_GPU)
 
     # Don't exclude based on confidence. Since we have two classes
     # then 0.5 is the minimum anyway as it picks between nucleus and BG
@@ -137,7 +137,7 @@ class NucleiSegConfig(Config):
     DETECTION_MAX_INSTANCES = 600
 
 
-class NucleiSegInferenceConfig(NucleusConfig):
+class NucleiSegInferenceConfig(NucleiSegConfig):
     # Set batch size to 1 to run one image at a time
     GPU_COUNT = 1
     IMAGES_PER_GPU = 1
@@ -181,8 +181,7 @@ class NucleiSegDataset(utils.Dataset):
                      "bladder", "colorectal", "stomach"]
         image_ids = []
         for o in organ:
-            image_ids += glob(os.path.join(o, "*.png"))
-
+            image_ids += glob(os.path.join(dataset_dir, "Slide_" + o, "*.png"))
         # Add images
         for image_id in image_ids:
             self.add_image(
@@ -199,7 +198,7 @@ class NucleiSegDataset(utils.Dataset):
         """
         info = self.image_info[image_id]
         # Get mask directory from image path
-        mask_file = os.path.dirname(info['path']).replace('Slide', 'GT')
+        mask_file = info['path'].replace('Slide', 'GT')
 
         mask = skimage.measure.label(skimage.io.imread(mask_file))
         x, y = mask.shape
@@ -353,9 +352,9 @@ if __name__ == '__main__':
 
     # Configurations
     if args.command == "train":
-        config = NucleusConfig()
+        config = NucleiSegConfig()
     else:
-        config = NucleusInferenceConfig()
+        config = NucleiSegInferenceConfig()
     config.display()
 
     # Create model

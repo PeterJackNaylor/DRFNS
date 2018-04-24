@@ -53,7 +53,7 @@ DIST_REC = ["DIST", "--UNet", 212]
 
 RECORDS_OPTIONS = Channel.from(UNET_REC, FCN_REC, DIST_REC)
 FOLDS.join(RECORDS_OPTIONS) .set{RECORDS_OPTIONS_v2}
-RECORDS_HP = [["train", "16", "0"], ["validation", "1", 996], ["test", "1", 996]]
+RECORDS_HP = [["train", "16", "0"], ["fulltrain", "16", "0"], ["validation", "1", 996], ["test", "1", 996]]
 
 process CreateRecords {
     input:
@@ -62,7 +62,7 @@ process CreateRecords {
     set name, file(path), unet, size_train from RECORDS_OPTIONS_v2
     each op from RECORDS_HP
     output:
-    set val("${name}"), val("${op[0]}"), file("${op[0]}_${name}.tfrecords") into NSR0, NSR1, NSR2
+    set val("${name}"), val("${op[0]}"), file("${op[0]}_${name}.tfrecords") into NSR0, NSR1, NSR2, NSR3
     """
     python $py --tf_record ${op[0]}_${name}.tfrecords --split ${op[0]} --path $path --crop ${op[1]} $unet --size_train $size_train --size_test ${op[2]} --seed 42 --epoch 1 --type JUST_READ 
     """
@@ -71,7 +71,7 @@ process CreateRecords {
 NSR0.filter{ it -> it[1] == "train" }.set{TRAIN_REC}
 NSR1.filter{ it -> it[1] == "validation" }.set{VAL_REC}
 NSR2.filter{ it -> it[1] == "test" }.set{TEST_REC}
-
+NSR3.filter{ it -> it[1] == "fulltrain"}.set{FULLTRAIN_REC}
 /*          2) We create the mean
 In outputs:
 a set with the name, the split and the record
@@ -84,7 +84,7 @@ process Mean {
     file py from MEANPY
     set val(name), file(toannotate) from FOLDS2
     output:
-    set val("$name"), file("mean_file.npy"), file("$toannotate") into MeanFile, Meanfile2, Meanfile2VAL, Meanfile3, Meanfile3VAL
+    set val("$name"), file("mean_file.npy"), file("$toannotate") into MeanFile, Meanfile2, Meanfile2VAL, Meanfile3, Meanfile3VAL, MeanFileFull
     """
     python $py --path $toannotate --output .
     """
@@ -111,7 +111,7 @@ UNET_TRAINING = ["UNet", Unet_file, 212, 0]
 FCN_TRAINING  = ["FCN", Fcn_file, 224, ITER8]
 DIST_TRAINING = ["DIST", Dist_file, 212, 0]
 
-Channel.from(UNET_TRAINING, FCN_TRAINING, DIST_TRAINING) .into{ TRAINING_CHANNEL; TRAINING_CHANNEL2; TRAINING_CHANNELVAL2}
+Channel.from(UNET_TRAINING, FCN_TRAINING, DIST_TRAINING) .into{ TRAINING_CHANNEL; TRAINING_CHANNEL2; TRAINING_CHANNELFULL}
 PRETRAINED_8 = file(params.image_dir + "/pretrained/checkpoint16/")
 TRAIN_REC.join(TRAINING_CHANNEL).join(MeanFile) .set {TRAINING_OPTIONS}
 
@@ -187,18 +187,44 @@ process GetBestPerKey {
 
     output:
     set val("$name"), file("best_model") into BEST_MODEL_VAL
-    file 'feat_val' into N_FEATS
-    file 'p1_val' into P1_VAL
-    file 'p2_val' into P2_VAL
+    set val("$name"), 'feat_val', 'wd_val', 'lr_val', 'p1_val', 'p2_val' into PARAM
     file "${name}_validation.csv"
     """
     python $py --store_best best_model --output ${name}_validation.csv
     """
 }
 
+N_FEATS .map{ it.text } .set {FEATS_}
+WD_VAL  .map{ it.text } .set {WD_}
+LR_VAL  .map{ it.text } .set {LR_}
+P1_VAL  .map{ it.text } .set {P1_}
+P2_VAL  .map{ it.text } .set {P2_}
+
+FULLTRAIN_REC. join(TRAINING_CHANNELFULL) .join(MeanFileFull) .set{FULL_RECORD}
+FULL_RECORD.join( PARAM ).set{FTRAINING_PARAM}
+
+
+process FullTraining {
+    beforeScript "source \$HOME/CUDA_LOCK/.whichNODE"
+    afterScript "source \$HOME/CUDA_LOCK/.freeNODE"
+    input:
+    set name, split, file(rec), file(py), size, iters, file(mean), file(path), feat, wd, lr, p1, p2 from FTRAINING_PARAM
+    val bs from BS
+    file __ from PRETRAINED_8
+    val epoch from params.epoch
+    output:
+    set val("$name"), file("${name}__${feat.text}_${wd.text}_${lr.text}"), "${feat.text}", "${wd.text}", "${lr.text}", "p1.text", "p2.text" into RESULT_FULLTRAIN
+    script:
+    """
+    python $py --tf_record $rec --path $path  --log ${name}__${feat.text}_${wd.text}_${lr.text} \\ 
+               --learning_rate ${lr.text} --batch_size $bs --epoch $epoch --n_features ${feat.text} \\
+               --size_train $size --weight_decay ${wd.text} --mean_file ${mean} --n_threads 100 --restore $__  --split $split --iters $iters
+    """
+} 
+
 /*
-Compute validation score on validation set
-a) Validation with hyper parameter choosen on different dataset
+Compute test score on test set
+a) Test with hyper parameter choosen on validation dataset
 
 */
 // a)

@@ -33,7 +33,7 @@ if __name__== "__main__":
 
     if SPLIT == "train":
         model.train8(N_ITER_MAX, LEARNING_RATE)
-    elif SPLIT == "test":
+    elif SPLIT == "validation":
         p1 = options.p1
         LOG = options.log
 
@@ -41,13 +41,13 @@ if __name__== "__main__":
         f = open(file_name, 'w')
 
         checkpoint = os.path.join(checkpoint, checkpoint) 
-        outs = model.test8(N_ITER_MAX, checkpoint, p1)
+        outs = model.validation8(N_ITER_MAX, checkpoint, p1)
         outs = [LOG] + list(outs) + [p1, 0.5]
         NAMES = ["ID", "Loss", "Acc", "F1", "Recall", "Precision", "ROC", "Jaccard", "AJI", "p1", "p2"]
         f.write('{},{},{},{},{},{},{},{},{},{},{}\n'.format(*NAMES))
 
         f.write('{},{},{},{},{},{},{},{},{},{},{}\n'.format(*outs))
-    elif SPLIT == "validation":
+    elif SPLIT == "test":
         
         TEST_PATIENT = ["testbreast", "testliver", "testkidney", "testprostate",
                         "bladder", "colorectal", "stomach"]
@@ -63,7 +63,7 @@ if __name__== "__main__":
                            transforms=transform_list_test, UNet=False, mean_file=None)
             save_organ = os.path.join(options.save_path, organ)
             CheckOrCreate(save_organ)
-            outs = model.validation(DG_TEST, 2, options.p1, 0.5, save_organ)
+            outs = model.test8(DG_TEST, 2, options.p1, 0.5, save_organ)
             for i in range(len(outs)):
                 small_o = outs[i]
                 small_o = [i, organ] + small_o + [options.p1, 0.5]

@@ -31,15 +31,15 @@ if __name__ == '__main__':
                                                         var_he=var_he) 
     if options.split == "train":
         TEST_PATIENT = ["testbreast", "testliver", "testkidney", "testprostate",
-                        "bladder", "colorectal", "stomach", "test"]
-        TRANSFORM_LIST = transform_list
-    elif options.split == "test":
-        TEST_PATIENT = ["test"]
+                        "bladder", "colorectal", "stomach", "validation"]
+        TRANSFORM_LIST = transform_list_test
+    elif options.split == "validation":
+        options.split = "test"
+        TEST_PATIENT = ["validation"]
         TRANSFORM_LIST = transform_list_test
         SIZE = options.size_test
 
-    elif options.split == "validation":
-        options.split = "test"
+    elif options.split == "test":
         TEST_PATIENT = ["testbreast", "testliver", "testkidney", "testprostate",
                         "bladder", "colorectal", "stomach"]
         TRANSFORM_LIST = transform_list_test

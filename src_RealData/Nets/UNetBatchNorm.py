@@ -4,6 +4,7 @@ import tensorflow as tf
 import numpy as np
 from datetime import datetime
 import os
+from Net_Utils import EarlyStopper
 
 class UNetBatchNorm(UNet):
     """
@@ -123,12 +124,12 @@ class UNetBatchNorm(UNet):
             print "no validation"
         else:
             n_test = DG_TEST.length
-            n_batch = int(np.ceil(float(n_test) / 1)) 
+            n_batch = int(np.ceil(float(n_test) / self.BATCH_SIZE)) 
 
             l, acc, F1, recall, precision, meanacc = 0., 0., 0., 0., 0., 0.
 
             for i in range(n_batch):
-                Xval, Yval = DG_TEST.Batch(0, 1)
+                Xval, Yval = DG_TEST.Batch(0, self.BATCH_SIZE)
                 feed_dict = {self.input_node: Xval,
                              self.train_labels_node: Yval,
                              self.is_training: False}
@@ -159,12 +160,17 @@ class UNetBatchNorm(UNet):
             print('  Validation loss: %.1f' % l)
             print('       Accuracy: %1.f%% \n       acc1: %.1f%% \n       recall: %1.f%% \n       prec: %1.f%% \n       f1 : %1.f%% \n' % (acc * 100, meanacc * 100, recall * 100, precision * 100, F1 * 100))
             self.saver.save(self.sess, self.LOG + '/' + "model.ckpt", step)
-        
+            wgt_path = self.LOG + '/' + "model.ckpt-{}".format(step)
+            return l, acc, meanacc, recall, precision, F1, wgt_path
 
     def train(self, DG_TEST):
         """
         How to train the model
         """
+        track = "F1"
+        output = os.path.join(self.LOG, "data_collector.csv")
+        look_behind = self.early_stopping_max
+        early_stop = EarlyStopper(track, output, maximum=look_behind)
 
         epoch = self.STEPS * self.BATCH_SIZE // self.N_EPOCH
 
@@ -184,10 +190,8 @@ class UNetBatchNorm(UNet):
         steps = self.STEPS
 
         init_op = tf.group(tf.global_variables_initializer(),
-                   tf.local_variables_initializer())
+                   tf.local_variables_initializer(), self.data_init)
         self.sess.run(init_op)
-        coord = tf.train.Coordinator()
-        threads = tf.train.start_queue_runners(coord=coord)
 
         for step in range(steps):      
             # self.optimizer is replaced by self.training_op for the exponential moving decay
@@ -196,7 +200,7 @@ class UNetBatchNorm(UNet):
                          self.train_prediction, self.train_labels_node,
                          self.merged_summary])
 
-            if step % self.N_PRINT == 0:
+            if step % self.N_PRINT == 0 and step != 0:
                 i = datetime.now()
                 print i.strftime('%Y/%m/%d %H:%M:%S: \n ')
                 self.summary_writer.add_summary(s, step)                
@@ -205,6 +209,8 @@ class UNetBatchNorm(UNet):
                 print('  Learning rate: %.5f \n') % lr
                 print('  Mini-batch loss: %.5f \n       Accuracy: %.1f%% \n       acc1: %.1f%% \n       recall: %1.f%% \n       prec: %1.f%% \n       f1 : %1.f%% \n' % 
                      (l, acc, acc1, recall, prec, f1))
-                self.Validation(DG_TEST, step)
-        coord.request_stop()
-        coord.join(threads)
+                values_test = self.Validation(DG_TEST, step)
+                names_test = ["Loss", "Acc", "AccMean", "Recall", "Precision", "F1", "wgt_path"]
+                if early_stop.DataCollectorStopper(values_test, names_test, step):
+                    break
+        early_stop.save()

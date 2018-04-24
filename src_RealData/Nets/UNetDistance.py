@@ -4,9 +4,16 @@
 from UNetBatchNorm import UNetBatchNorm
 import tensorflow as tf
 import numpy as np
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, f1_score
 from datetime import datetime
 from DataReadDecode import read_and_decode
+import os
+from Net_Utils import EarlyStopper
+
+def computeF1(P, GT, t):
+    P = (P > t).astype('uint8').flatten()
+    GT = (GT > t).astype('uint8').flatten()
+    return f1_score(P, GT, pos_label=1)
 
 class UNetDistance(UNetBatchNorm):
     def __init__(
@@ -31,64 +38,15 @@ class UNetDistance(UNetBatchNorm):
         N_EPOCH=1,
         N_THREADS=1,
         MEAN_FILE=None,
-        DROPOUT=0.5):
+        DROPOUT=0.5,
+        EARLY_STOPPING=10):
 
-        self.LEARNING_RATE = LEARNING_RATE
-        self.K = K
-        self.BATCH_SIZE = BATCH_SIZE
-        self.IMAGE_SIZE = IMAGE_SIZE
-        self.NUM_CHANNELS = NUM_CHANNELS
-        self.N_FEATURES = N_FEATURES
-        self.STEPS = STEPS
-        self.N_PRINT = N_PRINT
-        self.LRSTEP = LRSTEP
-        self.DECAY_EMA = DECAY_EMA
-        self.LOG = LOG
-        self.SEED = SEED
-        self.N_EPOCH = N_EPOCH
-        self.N_THREADS = N_THREADS
-        self.DROPOUT = DROPOUT
-        self.MEAN_FILE = MEAN_FILE
-        if MEAN_FILE is not None:
-            MEAN_ARRAY = tf.constant(np.load(MEAN_FILE), dtype=tf.float32) # (3)
-            self.MEAN_ARRAY = tf.reshape(MEAN_ARRAY, [1, 1, 3])
-            self.SUB_MEAN = True
-        else:
-            self.SUB_MEAN = False
+        UNetBatchNorm.__init__(self, TF_RECORDS, LEARNING_RATE, K, 
+            BATCH_SIZE, IMAGE_SIZE, 1, NUM_CHANNELS,
+            NUM_TEST, STEPS, LRSTEP, DECAY_EMA, N_PRINT, LOG, 
+            SEED, DEBUG, WEIGHT_DECAY, LOSS_FUNC, N_FEATURES,
+             N_EPOCH, N_THREADS, MEAN_FILE, DROPOUT, EARLY_STOPPING)
 
-        self.sess = tf.InteractiveSession()
-
-        self.sess.as_default()
-        
-        self.var_to_reg = []
-        self.var_to_sum = []
-        self.TF_RECORDS = TF_RECORDS
-        self.init_queue(TF_RECORDS)
-
-        self.init_vars()
-        self.init_model_architecture()
-        self.init_training_graph()
-        self.Saver()
-        self.DEBUG = DEBUG
-        self.loss_func = LOSS_FUNC
-        self.weight_decay = WEIGHT_DECAY
-
-    def init_queue(self, tfrecords_filename):
-        """
-        Added the number of channels to extract to
-        """
-        self.filename_queue = tf.train.string_input_producer(
-                              [tfrecords_filename], num_epochs=10)
-        with tf.device('/cpu:0'):
-            self.image, self.annotation = read_and_decode(self.filename_queue, 
-                                                          self.IMAGE_SIZE[0], 
-                                                          self.IMAGE_SIZE[1],
-                                                          self.BATCH_SIZE,
-                                                          self.N_THREADS,
-                                                          True,
-                                                          self.NUM_CHANNELS)
-            #self.annotation = tf.divide(self.annotation, 255.)
-        print("Queue initialized")
 
     def init_training_graph(self):
         """
@@ -338,10 +296,8 @@ class UNetDistance(UNetBatchNorm):
             print "no validation"
         else:
             n_test = DG_TEST.length
-            n_batch = int(np.ceil(float(n_test) / 1)) 
-
-            l = 0.
-            for i in range(n_batch):
+            loss, F1= 0., 0.
+            for i in range(n_test):
                 Xval, Yval = DG_TEST.Batch(0, 1)
                 #Yval = Yval / 255.
                 feed_dict = {self.input_node: Xval,
@@ -351,21 +307,30 @@ class UNetDistance(UNetBatchNorm):
                                                 self.predictions,
                                                 self.merged_summary],
                                                 feed_dict=feed_dict)
-                l += l_tmp
+                loss += l_tmp
+                F1 += computeF1(pred, Yval, 0.5)
 
-            l = l / n_batch
+
+            loss, F1 = np.array([loss, F1]) / n_test
 
             summary = tf.Summary()
-            summary.value.add(tag="TestMan/Loss", simple_value=l)
+            summary.value.add(tag="TestMan/Loss", simple_value=loss)
+            summary.value.add(tag="TestMan/F1", simple_value=F1)
             self.summary_test_writer.add_summary(summary, step) 
             self.summary_test_writer.add_summary(s, step) 
-            print('  Validation loss: %.1f' % l)
+            print('  Validation loss: %.1f, F1: %.2f' % (loss, F1))
             self.saver.save(self.sess, self.LOG + '/' + "model.ckpt", step)
-
+            wgt_path = self.LOG + '/' + "model.ckpt-{}".format(step)
+            return loss, F1, wgt_path
     def train(self, DGTest):
         """
         How the model trains.
         """
+        track = "F1"
+        output = os.path.join(self.LOG, "data_collector.csv")
+        look_behind = self.early_stopping_max
+        early_stop = EarlyStopper(track, output, maximum=look_behind)
+
         epoch = self.STEPS * self.BATCH_SIZE // self.N_EPOCH
         self.Saver()
         trainable_var = tf.trainable_variables()
@@ -373,7 +338,7 @@ class UNetDistance(UNetBatchNorm):
         self.optimization(trainable_var)
         self.ExponentialMovingAverage(trainable_var, self.DECAY_EMA)
         init_op = tf.group(tf.global_variables_initializer(),
-                   tf.local_variables_initializer())
+                   tf.local_variables_initializer(), self.data_init)
         self.sess.run(init_op)
         self.regularize_model()
 
@@ -389,8 +354,6 @@ class UNetDistance(UNetBatchNorm):
         steps = self.STEPS
 
         print "self.global step", int(self.global_step.eval())
-        coord = tf.train.Coordinator()
-        threads = tf.train.start_queue_runners(coord=coord)
         begin = int(self.global_step.eval())
         print "begin", begin
         for step in range(begin, steps + begin):  
@@ -408,12 +371,8 @@ class UNetDistance(UNetBatchNorm):
                 print('  Learning rate: %.5f \n') % lr
                 print('  Mini-batch loss: %.5f \n ') % l
                 print('  Max value: %.5f \n ') % np.max(predictions)
-                self.Validation(DGTest, step)
-        coord.request_stop()
-        coord.join(threads)
-    def predict(self, tensor):
-        feed_dict = {self.input_node: tensor,
-                     self.is_training: False}
-        pred = self.sess.run(self.predictions,
-                            feed_dict=feed_dict)
-        return pred
+                values_test = self.Validation(DGTest, step)
+                names_test = ["Loss", "F1", "wgt_path"]
+                if early_stop.DataCollectorStopper(values_test, names_test, step):
+                    break
+        early_stop.save()

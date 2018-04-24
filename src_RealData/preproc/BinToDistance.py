@@ -5,6 +5,7 @@ from shutil import copy
 from utils import CheckOrCreate
 from scipy.ndimage.morphology import distance_transform_cdt
 import numpy as np
+import sys
 
 def LoadGT(path):
     img = imread(path, dtype='uint8')
@@ -20,9 +21,11 @@ def DistanceWithoutNormalise(bin_image):
     res = res.astype('uint8')
     return res
 
+Folder = sys.argv[1] 
+
 NEW_FOLDER = 'ToAnnotateDistance'
 CheckOrCreate(NEW_FOLDER)
-for image in glob('ForDataGenTrainTestVal/Slide_*/*.png'):
+for image in glob('{}/Slide_*/*.png'.format(Folder)):
     baseN = basename(image)
     Slide_name = dirname(image)
     GT_name = baseN.replace('Slide', 'GT')

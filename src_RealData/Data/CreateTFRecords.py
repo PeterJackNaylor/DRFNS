@@ -5,6 +5,9 @@ import tensorflow as tf
 from DataGenRandomT import DataGenRandomT
 from DataGenClass import DataGen3, DataGenMulti, DataGen3reduce
 import numpy as np
+from ImageTransform import Transf
+
+EnLarge = Transf("").enlarge
 
 def _bytes_feature(value):
     return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
@@ -78,6 +81,7 @@ def CreateTFRecord(OUTNAME, PATH, CROP, SIZE,
       for _ in range(N_ITER_MAX):
           key = DG.NextKeyRandList(0)
           img, annotation = DG[key]
+          annotation = EnLarge(annotation, 92, 92)
   #        img = img.astype(np.uint8)
           annotation = annotation.astype(np.uint8)
           height_img = img.shape[0]

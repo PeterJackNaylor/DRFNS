@@ -37,58 +37,35 @@ class DataReader(ConvolutionalNeuralNetwork):
         N_EPOCH=1,
         N_THREADS=1,
         MEAN_FILE=None,
-        DROPOUT=0.5):
+        DROPOUT=0.5,
+        EARLY_STOPPING=10):
 
-        self.LEARNING_RATE = LEARNING_RATE
-        self.K = K
-        self.BATCH_SIZE = BATCH_SIZE
-        self.IMAGE_SIZE = IMAGE_SIZE
-        self.NUM_LABELS = NUM_LABELS
-        self.NUM_CHANNELS = NUM_CHANNELS
-        self.N_FEATURES = N_FEATURES
-#        self.NUM_TEST = NUM_TEST
-        self.STEPS = STEPS
-        self.N_PRINT = N_PRINT
-        self.LRSTEP = LRSTEP
-        self.DECAY_EMA = DECAY_EMA
-        self.LOG = LOG
-        self.SEED = SEED
         self.N_EPOCH = N_EPOCH
         self.N_THREADS = N_THREADS
         self.DROPOUT = DROPOUT
         self.MEAN_FILE = MEAN_FILE
         if MEAN_FILE is not None:
             MEAN_ARRAY = tf.constant(np.load(MEAN_FILE), dtype=tf.float32) # (3)
-            self.MEAN_ARRAY = tf.reshape(MEAN_ARRAY, [1, 1, 3])
+            self.MEAN_ARRAY = tf.reshape(MEAN_ARRAY, [1, 1, NUM_CHANNELS])
             self.SUB_MEAN = True
         else:
             self.SUB_MEAN = False
-
-        self.sess = tf.InteractiveSession()
-
-        self.sess.as_default()
-        
-        self.var_to_reg = []
-        self.var_to_sum = []
         self.TF_RECORDS = TF_RECORDS
+        self.IMAGE_SIZE = IMAGE_SIZE
+        self.BATCH_SIZE = BATCH_SIZE
         self.init_queue(TF_RECORDS)
-
-        self.init_vars()
-        self.init_model_architecture()
-        self.init_training_graph()
-        self.Saver()
-        self.DEBUG = DEBUG
-        self.loss_func = LOSS_FUNC
-        self.weight_decay = WEIGHT_DECAY
+        ConvolutionalNeuralNetwork.__init__(self, LEARNING_RATE, K, 
+            BATCH_SIZE, IMAGE_SIZE, NUM_LABELS, NUM_CHANNELS, 
+            NUM_TEST, STEPS, LRSTEP, DECAY_EMA, N_PRINT, LOG, 
+            SEED, DEBUG, WEIGHT_DECAY, LOSS_FUNC, N_FEATURES,
+            EARLY_STOPPING)
 
     def init_queue(self, tfrecords_filename):
         """
         New queues for coordinator
         """
-        self.filename_queue = tf.train.string_input_producer(
-                              [tfrecords_filename], num_epochs=10)
         with tf.device('/cpu:0'):
-            self.image, self.annotation = read_and_decode(self.filename_queue, 
+            self.data_init, self.image, self.annotation = read_and_decode(tfrecords_filename, 
                                                           self.IMAGE_SIZE[0], 
                                                           self.IMAGE_SIZE[1],
                                                           self.BATCH_SIZE,
@@ -185,10 +162,8 @@ class DataReader(ConvolutionalNeuralNetwork):
         steps = self.STEPS
 
         init_op = tf.group(tf.global_variables_initializer(),
-                   tf.local_variables_initializer())
+                   tf.local_variables_initializer(), self.data_init)
         self.sess.run(init_op)
-        coord = tf.train.Coordinator()
-        threads = tf.train.start_queue_runners(coord=coord)
 
         for step in range(steps):      
             # self.optimizer is replaced by self.training_op for the exponential moving decay
@@ -207,5 +182,3 @@ class DataReader(ConvolutionalNeuralNetwork):
                 print('  Mini-batch loss: %.5f \n       Accuracy: %.1f%% \n       acc1: %.1f%% \n       recall: %1.f%% \n       prec: %1.f%% \n       f1 : %1.f%% \n' % 
                      (l, acc, acc1, recall, prec, f1))
                 self.Validation(DG_TEST, step)
-        coord.request_stop()
-        coord.join(threads)

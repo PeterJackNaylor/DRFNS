@@ -132,9 +132,6 @@ process Training {
     "$name" != "FCN" || ("$feat" == "${FEATURES[0]}" && "$wd" == "${WEIGHT_DECAY[0]}")
     script:
     """
-    module load cuda90
-    PS1=\${PS1:=} CONDA_PATH_BACKUP="" source $HOME/gpu/bin/activate
-    export PYTHONPATH=$HOME/gpu/lib/python2.7/site-packages:$PYTHONPATH
     python $py --tf_record $rec --path $path  --log ${name}__${feat}_${wd}_${lr} --learning_rate $lr --batch_size $bs --epoch $epoch --n_features $feat --size_train $size --weight_decay $wd --mean_file ${mean} --n_threads 100 --restore $__  --split $split --iters $iters
     """
 } 
@@ -165,9 +162,6 @@ process Validation {
     ("$name" =~ "DIST" && p1 < 6) || ( !("$name" =~ "DIST") && p2 == P2[0] && p1 > 5)
     script:
     """
-    module load cuda90
-    PS1=\${PS1:=} CONDA_PATH_BACKUP="" source $HOME/gpu/bin/activate
-    export PYTHONPATH=$HOME/gpu/lib/python2.7/site-packages:$PYTHONPATH
     python $py --tf_record $rec --path $path  --log $model --batch_size 1 --n_features $feat --mean_file ${mean} --n_threads 100 --split $split --size_test 996 --p1 ${p1} --p2 ${p2} --restore $model --iters $iters --output ${name}__${feat}_${wd}_${lr}_${p1}_${p2}.csv
     """  
 
@@ -217,9 +211,6 @@ process FullTraining {
     set val("$name"), file("${name}__${feat.text}_${wd.text}_${lr.text}"), val("${feat.text}"), val("${wd.text}"), val("${lr.text}"), val("${p1.text}"), val("${p2.text}") into RESULT_FULLTRAIN
     script:
     """
-    module load cuda90
-    PS1=\${PS1:=} CONDA_PATH_BACKUP="" source $HOME/gpu/bin/activate
-    export PYTHONPATH=$HOME/gpu/lib/python2.7/site-packages:$PYTHONPATH
     python $py --tf_record $rec --path $path  --log ${name}__${feat.text}_${wd.text}_${lr.text} --learning_rate ${lr.text} --batch_size $bs --epoch $epoch --n_features ${feat.text} --size_train $size --weight_decay ${wd.text} --mean_file ${mean} --n_threads 100 --restore $__  --split $split --iters $iters
     """
 } 
@@ -242,9 +233,6 @@ process Test {
     file "./$name"
     file "${name}.csv" into CSV_TEST
     """
-    module load cuda90
-    PS1=\${PS1:=} CONDA_PATH_BACKUP="" source $HOME/gpu/bin/activate
-    export PYTHONPATH=$HOME/gpu/lib/python2.7/site-packages:$PYTHONPATH
     python $py --mean_file $mean --path $path --log $model --restore $model --batch_size 1 --n_features ${feat} --n_threads 100 --split test --size_test 996 --p1 ${p1} --p2 ${p2} --output ${name}.csv --save_path $name
     """
 }

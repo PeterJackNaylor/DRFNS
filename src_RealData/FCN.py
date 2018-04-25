@@ -15,6 +15,8 @@ if __name__== "__main__":
     options = GetOptions()
 
     SPLIT = options.split
+    if SPLIT == "fulltrain":
+        SPLIT = "train"
 
     ## Model parameters
     TFRecord = options.TFRecord
@@ -30,7 +32,6 @@ if __name__== "__main__":
 
     model = FCN8(checkpoint, save_dir, TFRecord, SIZE[0],
                  2, 1000, options.split)
-
     if SPLIT == "train":
         model.train8(N_ITER_MAX, LEARNING_RATE)
     elif SPLIT == "validation":

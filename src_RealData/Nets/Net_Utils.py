@@ -58,7 +58,7 @@ class EarlyStopper(object):
             if step != best_ind:
                 best_wgt = self.DataCollector.loc[best_ind, path_var]
                 LOG = os.path.abspath(best_wgt)
-                make_it_seem_new = LOG.replace(str(best_ind), str(best_ind+10))
+                make_it_seem_new = LOG.replace(str(best_ind), str(best_ind+100))
                 os.symlink(best_wgt + ".data-00000-of-00001", make_it_seem_new + ".data-00000-of-00001")
                 os.symlink(best_wgt + ".index", make_it_seem_new + ".index")
                 os.symlink(best_wgt + ".meta", make_it_seem_new + ".meta")

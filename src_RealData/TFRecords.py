@@ -44,8 +44,10 @@ if __name__ == '__main__':
                         "bladder", "colorectal", "stomach"]
         TRANSFORM_LIST = transform_list_test
         SIZE = options.size_test
-
-
+    elif options.split == "fulltrain":
+        TEST_PATIENT = ["testbreast", "testliver", "testkidney", "testprostate",
+                        "bladder", "colorectal", "stomach"]
+        TRANSFORM_LIST = transform_list_test
     SIZE = (SIZE, SIZE)
     CreateTFRecord(OUTNAME, PATH, CROP, SIZE,
                    TRANSFORM_LIST, UNET, None, 

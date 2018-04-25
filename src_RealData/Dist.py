@@ -10,7 +10,7 @@ from Data.ImageTransform import ListTransform
 from Data.DataGenClass import DataGenMulti
 from Nets.DataReadDecode import read_and_decode
 from Nets.UNetDistance import UNetDistance
-
+from skimage import img_as_ubyte
 
 
 class Model(UNetDistance):
@@ -63,12 +63,13 @@ class Model(UNetDistance):
                          self.is_training: False}
             l, pred = self.sess.run([self.loss, self.predictions],
                                     feed_dict=feed_dict)
-            pred[pred > 255] = 255
-            pred[pred < 0] = 0
-            pred = pred.astype(int)
+            #pred[pred > 255] = 255
+            #pred[pred < 0] = 0
+            #pred = pred / 255.
+            #pred = img_as_ubyte(pred)
             rgb = (Xval[0,92:-92,92:-92] + np.load(self.MEAN_FILE)).astype(np.uint8)
             Yval[ Yval > 0 ] = 255
-            out = ComputeMetrics(pred[0,:,:], Yval[0,:,:,0], p1, p2, rgb=rgb, save_path=save_path, ind=i)
+            out = ComputeMetrics(pred[0,:,:], Yval[0,:,:,0], p1, p2, rgb=rgb, save_path=save_path, ind=i, uint8=False)
             out = [l] + list(out)
             res.append(out)
         return res
@@ -81,7 +82,8 @@ if __name__== "__main__":
     options = GetOptions()
 
     SPLIT = options.split
-
+    if SPLIT == "fulltrain":
+        SPLIT = "train"
     ## Model parameters
     TFRecord = options.TFRecord
     LEARNING_RATE = options.lr
@@ -118,8 +120,8 @@ if __name__== "__main__":
         N_ITER_MAX = N_EPOCH * DG_TRAIN.length // BATCH_SIZE
     elif SPLIT == "validation":
         N_ITER_MAX = N_EPOCH * DG_TEST.length // BATCH_SIZE
-    elif SPLIT == "test":
-        LOG = glob(os.path.join(LOG, '*'))[0]
+#    elif SPLIT == "test":
+#        LOG = glob(os.path.join(LOG, '*'))[0]
     model = Model(TFRecord,            LEARNING_RATE=LEARNING_RATE,
                                        BATCH_SIZE=BATCH_SIZE,
                                        IMAGE_SIZE=SIZE,

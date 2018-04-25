@@ -3,6 +3,7 @@
 
 from optparse import OptionParser
 from skimage.measure import label
+from skimage import img_as_ubyte
 from sklearn.metrics import accuracy_score, roc_auc_score
 from sklearn.metrics import jaccard_similarity_score, f1_score
 from sklearn.metrics import recall_score, precision_score, confusion_matrix
@@ -14,7 +15,7 @@ import numpy as np
 import pdb
 import time
 from progressbar import ProgressBar
-from postproc.postprocessing import PostProcess, generate_wsl
+from postproc.postprocessing import PostProcess, PostProcessFloat, generate_wsl
 
 def GetOptions():
     """
@@ -69,13 +70,16 @@ def GetOptions():
 
     return options
 
-def ComputeMetrics(prob, batch_labels, p1, p2, rgb=None, save_path=None, ind=0):
+def ComputeMetrics(prob, batch_labels, p1, p2, rgb=None, save_path=None, ind=0, uint8=True):
     """
     Computes all metrics between probability map and corresponding label.
     If you give also an rgb image it will save many extra meta data image.
     """
     GT = label(batch_labels.copy())
-    PRED = PostProcess(prob, p1, p2)
+    if uint8:
+        PRED = PostProcess(prob, p1, p2)
+    else:
+        PRED = PostProcessFloat(prob, p1, p2)
     # PRED = label((prob > 0.5).astype('uint8'))
     lbl = GT.copy()
     pred = PRED.copy()
@@ -90,21 +94,24 @@ def ComputeMetrics(prob, batch_labels, p1, p2, rgb=None, save_path=None, ind=0):
     recall = recall_score(l, p)
     precision = precision_score(l, p)
     if rgb is not None:
-        xval_n = join(save_path, "xval_{}.png").format(ind)
-        yval_n = join(save_path, "yval_{}.png").format(ind)
-        prob_n = join(save_path, "prob_{}.png").format(ind)
-        pred_n = join(save_path, "pred_{}.png").format(ind)
-        c_gt_n = join(save_path, "C_gt_{}.png").format(ind)
-        c_pr_n = join(save_path, "C_pr_{}.png").format(ind)
-
-        imsave(xval_n, rgb)
-        imsave(yval_n, color_bin(GT))
-        imsave(prob_n, prob)
-        imsave(pred_n, color_bin(PRED))
-        imsave(c_gt_n, add_contours(rgb, GT))
-        imsave(c_pr_n, add_contours(rgb, PRED))
-
+        Plot(rgb, GT, PRED, prob, save_path, ind, uint8)
     return acc, roc, jac, recall, precision, f1, aji
+
+
+def Plot(rgb, gt, pred, prob, save_path, ind, uint8):
+    if not uint8:
+        prob[prob > 0] = 0
+        prob = img_as_ubyte(prob / 255.)
+    xval_n = join(save_path, "rgb_{}.png").format(ind)
+    pred_n = join(save_path, "pred_{}.png").format(ind)
+    prob_n = join(save_path, "prob_{}.png").format(ind)
+    c_ = join(save_path, "Contours_{}.png").format(ind)
+    imsave(xval_n, rgb)
+    cont = add_contours(rgb, gt, color="green")
+    cont = add_contours(cont, pred, color="yellow")
+    imsave(c_, cont)
+    imsave(prob_n, prob)
+    imsave(pred_n, color_bin(pred))
 
 def color_bin(bin_labl):
     """
@@ -120,17 +127,26 @@ def color_bin(bin_labl):
         rgb = rgb.astype(np.uint8)
         res[bin_labl == i] = rgb
     return res.astype(np.uint8)
+from skimage.segmentation import find_boundaries
 
-def add_contours(rgb_image, contour, ds = 2):
+def add_contours(image, label, color="green"):
     """
     Adds contours to images.
-    The image has to be a binary image 
     """
-    rgb = rgb_image.copy()
-    contour[contour > 0] = 1
-    boundery = contour - erosion(contour, disk(ds))
-    rgb[boundery > 0] = np.array([0, 0, 0])
-    return rgb
+    
+    mask = find_boundaries(label)
+    res = np.array(image).copy()
+    if color == "green":
+        res[mask] = np.array([0, 255, 0])
+    elif color == "yellow":
+        res[mask] = np.array([255, 255, 0])
+    return res
+#def add_contours(rgb_image, contour, ds = 2):
+#    rgb = rgb_image.copy()
+#    contour[contour > 0] = 1
+#    boundery = contour - erosion(contour, disk(ds))
+#    rgb[boundery > 0] = np.array([0, 0, 0])
+#    return rgb
 
 def CheckOrCreate(path):
     """

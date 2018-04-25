@@ -26,7 +26,7 @@ table.to_csv(options.output, header=True, index=True)
 tmove_name = "{}".format(best_index)
 model = "_".join(best_index.split('_')[:-2])
 n_feat = model.split('__')[1].split('_')[0]
-lr = model.split('__')[1].split('_')[2].split('.')[0]
+lr = model.split('__')[1].split('_')[2]
 wd = model.split('__')[1].split('_')[1]
 name = options.store_best
 os.mkdir(name)

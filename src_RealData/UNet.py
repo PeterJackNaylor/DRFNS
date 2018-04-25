@@ -78,7 +78,8 @@ if __name__== "__main__":
     options = GetOptions()
 
     SPLIT = options.split
-
+    if SPLIT == "fulltrain":
+        SPLIT = "train"
     ## Model parameters
     TFRecord = options.TFRecord
     LEARNING_RATE = options.lr
@@ -114,8 +115,8 @@ if __name__== "__main__":
         N_ITER_MAX = N_EPOCH * DG_TRAIN.length // BATCH_SIZE
     elif SPLIT == "validation":
         N_ITER_MAX = N_EPOCH * DG_TEST.length // BATCH_SIZE
-    elif SPLIT == "test":
-        LOG = glob(os.path.join(LOG, '*'))[0] 
+#    elif SPLIT == "test":
+#        LOG = glob(os.path.join(LOG, '*'))[0] 
     model = Model(TFRecord,            LEARNING_RATE=LEARNING_RATE,
                                        BATCH_SIZE=BATCH_SIZE,
                                        IMAGE_SIZE=SIZE,

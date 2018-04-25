@@ -3,7 +3,7 @@
 // General parameters
 params.image_dir = './datafolder'
 params.epoch = 1
-IMAGE_FOLD = file(params.image_dir + "/Normalized_ForDataGenTrainTestVal")
+IMAGE_FOLD = file(params.image_dir + "/ForDataGenTrainTestVal")
 /*          0) a) Resave all the images so that they have 1 for label instead of 255 
             0) b) Resave all the images so that they are distance map
 In outputs:
@@ -98,10 +98,10 @@ a set with the name, the parameters of the model
 
 ITERVAL = 4
 ITER8 = 10800
-LEARNING_RATE = [0.001, 0.0001, 0.00001]//, 0.000001]
+LEARNING_RATE = [0.001, 0.0001]//, 0.00001]//, 0.000001]
 FEATURES = [16, 32, 64]
-WEIGHT_DECAY = [0.000005, 0.00005, 0.0005]
-BS = 10
+WEIGHT_DECAY = [0.00005, 0.0005]
+BS = 16
 
 Unet_file = file('src_RealData/UNet.py')
 Fcn_file = file('src_RealData/FCN.py')
@@ -132,6 +132,9 @@ process Training {
     "$name" != "FCN" || ("$feat" == "${FEATURES[0]}" && "$wd" == "${WEIGHT_DECAY[0]}")
     script:
     """
+    module load cuda90
+    PS1=\${PS1:=} CONDA_PATH_BACKUP="" source $HOME/gpu/bin/activate
+    export PYTHONPATH=$HOME/gpu/lib/python2.7/site-packages:$PYTHONPATH
     python $py --tf_record $rec --path $path  --log ${name}__${feat}_${wd}_${lr} --learning_rate $lr --batch_size $bs --epoch $epoch --n_features $feat --size_train $size --weight_decay $wd --mean_file ${mean} --n_threads 100 --restore $__  --split $split --iters $iters
     """
 } 
@@ -143,7 +146,7 @@ In outputs: a set with the name and model or csv
 */
 // a)
 P1 = [0, 1, 10, 11]//[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-P2 = [0.5, 1.0] //, 1.5, 2.0]
+P2 = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0] //, 1.5, 2.0]
 VAL_REC.cross(RESULT_TRAIN).map{ first, second -> [first, second.drop(1)].flatten() } .set{ VAL_OPTIONS_pre }
 Meanfile2.cross(VAL_OPTIONS_pre).map { first, second -> [first, second.drop(1)].flatten() } .into{VAL_OPTIONS;VAL_OPTIONS2}
 
@@ -162,6 +165,9 @@ process Validation {
     ("$name" =~ "DIST" && p1 < 6) || ( !("$name" =~ "DIST") && p2 == P2[0] && p1 > 5)
     script:
     """
+    module load cuda90
+    PS1=\${PS1:=} CONDA_PATH_BACKUP="" source $HOME/gpu/bin/activate
+    export PYTHONPATH=$HOME/gpu/lib/python2.7/site-packages:$PYTHONPATH
     python $py --tf_record $rec --path $path  --log $model --batch_size 1 --n_features $feat --mean_file ${mean} --n_threads 100 --split $split --size_test 996 --p1 ${p1} --p2 ${p2} --restore $model --iters $iters --output ${name}__${feat}_${wd}_${lr}_${p1}_${p2}.csv
     """  
 
@@ -194,11 +200,6 @@ process GetBestPerKey {
     """
 }
 
-N_FEATS .map{ it.text } .set {FEATS_}
-WD_VAL  .map{ it.text } .set {WD_}
-LR_VAL  .map{ it.text } .set {LR_}
-P1_VAL  .map{ it.text } .set {P1_}
-P2_VAL  .map{ it.text } .set {P2_}
 
 FULLTRAIN_REC. join(TRAINING_CHANNELFULL) .join(MeanFileFull) .set{FULL_RECORD}
 FULL_RECORD.join( PARAM ).set{FTRAINING_PARAM}
@@ -213,12 +214,13 @@ process FullTraining {
     file __ from PRETRAINED_8
     val epoch from params.epoch
     output:
-    set val("$name"), file("${name}__${feat.text}_${wd.text}_${lr.text}"), "${feat.text}", "${wd.text}", "${lr.text}", "p1.text", "p2.text" into RESULT_FULLTRAIN
+    set val("$name"), file("${name}__${feat.text}_${wd.text}_${lr.text}"), val("${feat.text}"), val("${wd.text}"), val("${lr.text}"), val("${p1.text}"), val("${p2.text}") into RESULT_FULLTRAIN
     script:
     """
-    python $py --tf_record $rec --path $path  --log ${name}__${feat.text}_${wd.text}_${lr.text} \\ 
-               --learning_rate ${lr.text} --batch_size $bs --epoch $epoch --n_features ${feat.text} \\
-               --size_train $size --weight_decay ${wd.text} --mean_file ${mean} --n_threads 100 --restore $__  --split $split --iters $iters
+    module load cuda90
+    PS1=\${PS1:=} CONDA_PATH_BACKUP="" source $HOME/gpu/bin/activate
+    export PYTHONPATH=$HOME/gpu/lib/python2.7/site-packages:$PYTHONPATH
+    python $py --tf_record $rec --path $path  --log ${name}__${feat.text}_${wd.text}_${lr.text} --learning_rate ${lr.text} --batch_size $bs --epoch $epoch --n_features ${feat.text} --size_train $size --weight_decay ${wd.text} --mean_file ${mean} --n_threads 100 --restore $__  --split $split --iters $iters
     """
 } 
 
@@ -228,25 +230,22 @@ a) Test with hyper parameter choosen on validation dataset
 
 */
 // a)
-BEST_MODEL_VAL.join(TRAINING_CHANNEL2).join(Meanfile3) .set{ TEST_OPTIONS}
-N_FEATS .map{ it.text } .set {FEATS_}
-P1_VAL  .map{ it.text } .set {P1_}
-P2_VAL  .map{ it.text } .set {P2_}
+RESULT_FULLTRAIN .join(TRAINING_CHANNEL2).join(Meanfile3) .set{ TEST_OPTIONS}
 
 process Test {
     beforeScript "source \$HOME/CUDA_LOCK/.whichNODE"
     afterScript "source \$HOME/CUDA_LOCK/.freeNODE"
     publishDir "./out_RDS/Test/"
     input:
-    set name, file(best_model), file(py), _, __, file(mean), file(path) from TEST_OPTIONS
-    val feat from FEATS_ 
-    val p1 from P1_
-    val p2 from P2_
+    set name, file(model), feat, wd, lr, p1, p2, file(py), _, __, file(mean), file(path) from TEST_OPTIONS
     output:
     file "./$name"
     file "${name}.csv" into CSV_TEST
     """
-    python $py --mean_file $mean --path $path --log $best_model --restore $best_model --batch_size 1 --n_features ${feat} --n_threads 100 --split test --size_test 996 --p1 ${p1} --p2 ${p2} --output ${name}.csv --save_path $name
+    module load cuda90
+    PS1=\${PS1:=} CONDA_PATH_BACKUP="" source $HOME/gpu/bin/activate
+    export PYTHONPATH=$HOME/gpu/lib/python2.7/site-packages:$PYTHONPATH
+    python $py --mean_file $mean --path $path --log $model --restore $model --batch_size 1 --n_features ${feat} --n_threads 100 --split test --size_test 996 --p1 ${p1} --p2 ${p2} --output ${name}.csv --save_path $name
     """
 }
 

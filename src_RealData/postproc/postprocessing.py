@@ -3,38 +3,38 @@
 
 from skimage.morphology import watershed
 import numpy as np
-from skimage.measure import label
+from skimage.measure import label, regionprops
 from skimage.morphology import reconstruction, dilation, erosion, disk, diamond, square
 from skimage import img_as_ubyte
 
 
-def PrepareProb(img, convertuint8=True, inverse=True):
+def PrepareProb(img, uint8=True):
     """
     Prepares the prob image for post-processing, it can convert from
     float -> to uint8 and it can inverse it if needed.
     """
-    if convertuint8:
+    if uint8:
         img = img_as_ubyte(img)
-    if inverse:
         img = 255 - img
+    else:
+        img = img.max() - img
     return img
 
 
-def HreconstructionErosion(prob_img, h):
+def HreconstructionErosion(prob_img, h, uint8=True):
     """
     Performs a H minimma reconstruction via an erosion method.
     """
-
+    maxi = 255 if uint8 else prob_img.max()
     def making_top_mask(x, lamb=h):
-       return min(255, x + lamb)
-
+        return min(maxi, x + lamb)
     f = np.vectorize(making_top_mask)
     shift_prob_img = f(prob_img)
 
     seed = shift_prob_img
     mask = prob_img
     recons = reconstruction(
-        seed, mask, method='erosion').astype(np.dtype('ubyte'))
+        seed, mask, method='erosion').astype(prob_img.dtype)
     return recons
 
 
@@ -42,7 +42,6 @@ def find_maxima(img, convertuint8=False, inverse=False, mask=None):
     """
     Finds all local maxima from 2D image.
     """
-    img = PrepareProb(img, convertuint8=convertuint8, inverse=inverse)
     recons = HreconstructionErosion(img, 1)
     if mask is None:
         return recons - img
@@ -76,24 +75,46 @@ def generate_wsl(ws):
     grad = grad.astype(np.uint8)
     return grad
 
-def DynamicWatershedAlias(p_img, lamb, p_thresh = 0.5):
+def assign_wsl(label_res, wsl):
+    """
+    Assigns wsl to biggest connect component in the bbox around the wsl.
+    """
+    wsl_lb = label(wsl)
+    objects = regionprops(wsl_lb)
+    for obj in objects:
+        x_b, y_b, x_t, y_t = obj.bbox
+        import pdb; pdb.set_trace()
+        val, counts = np.unique(label_res[x_b:x_t, y_b:y_t], return_counts=True)
+        if 0 in val:
+	    coord = np.where(val == 0)[0]
+            counts[coord] = 0
+        if obj.label in val:
+            coord = np.where(val == obj.label)[0]
+            counts[coord] = 0
+        best_lab = val[counts.argmax()]
+        label_res[wsl_lb == obj.label] = best_lab
+    return label_res
+         
+
+
+
+def DynamicWatershedAlias(p_img, lamb, p_thresh = 0.5, uint8=True):
     """
     Applies our dynamic watershed to 2D prob/dist image.
     """
     b_img = (p_img > p_thresh) + 0
-    Probs_inv = PrepareProb(p_img)
+    Probs_inv = PrepareProb(p_img, uint8)
 
 
     Hrecons = HreconstructionErosion(Probs_inv, lamb)
     markers_Probs_inv = find_maxima(Hrecons, mask = b_img)
     markers_Probs_inv = label(markers_Probs_inv)
     ws_labels = watershed(Hrecons, markers_Probs_inv, mask=b_img)
-    arrange_label = ArrangeLabel(ws_labels)
-    wsl = generate_wsl(arrange_label)
-    arrange_label[wsl > 0] = 0
-    
+    result = ArrangeLabel(ws_labels)
+    #wsl = generate_wsl(arrange_label)
+    #result = assign_wsl(arrange_label, wsl)
 
-    return arrange_label
+    return result
 
 def ArrangeLabel(mat):
     """
@@ -113,4 +134,11 @@ def PostProcess(prob_image, param=7, thresh = 0.5):
     Perform DynamicWatershedAlias with some default parameters.
     """
     segmentation_mask = DynamicWatershedAlias(prob_image, param, thresh)
+    return segmentation_mask
+
+def PostProcessFloat(prob_image, param=0, thresh = 0.):
+    """
+    Perform DynamicWatershedAlias with some default parameters.
+    """
+    segmentation_mask = DynamicWatershedAlias(prob_image, param, thresh, uint8=False)
     return segmentation_mask

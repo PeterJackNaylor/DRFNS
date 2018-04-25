@@ -205,7 +205,7 @@ class FCN8():
         """
         Setups the model in case we need to test.
         """
-        self.restore = glob(os.path.join(self.checkpoint8, "FCN__*", "*.data*" ))[0].split(".data")[0]  
+        self.restore = glob(os.path.join(self.checkpoint8, "FCN__*.data*" ))[0].split(".data")[0]  
         
         filename_queue = tf.train.string_input_producer(
                                     [tfname], num_epochs=10)

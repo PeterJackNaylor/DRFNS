@@ -70,7 +70,7 @@ MEAN_FILE = "mean_file.npy"
 #  Configurations
 ############################################################
 
-class NucleiSegConfig(Config):
+class NucleiSegConfig(Config):   
     """Configuration for training on the nucleus segmentation dataset."""
     # Give the configuration a recognizable name
     LEARNING_RATE = 0.001
@@ -124,7 +124,7 @@ class NucleiSegConfig(Config):
     # If enabled, resizes instance masks to a smaller size to reduce
     # memory load. Recommended when using high-resolution images.
     USE_MINI_MASK = True
-    MINI_MASK_SHAPE = (56, 56)  # (height, width) of the mini-mask
+    MINI_MASK_SHAPE = (28, 28)  # (height, width) of the mini-mask
    
     # Number of ROIs per image to feed to classifier/mask heads
     # The Mask RCNN paper uses 512 but often the RPN doesn't generate
@@ -409,8 +409,16 @@ if __name__ == '__main__':
     parser.add_argument('--subset', required=False,
                         metavar="Dataset sub-directory",
                         help="Subset of dataset to run prediction on")
+    parser.add_argument('--lr', required=False, default=0.001,
+                        metavar="learning_rate value",
+                        help="learning rate")
+    parser.add_argument('--DMC', required=False, default=0.9,
+                        metavar="DETECTION_MIN_CONFIDENCE",
+                        help="DETECTION_MIN_CONFIDENCE")
+    parser.add_argument('--RPN_NMS_THRESHOLD', required=False, default=0.7,
+                        metavar="RPN_NMS_THRESHOLD",
+                        help="RPN_NMS_THRESHOLD")
     args = parser.parse_args()
-
     # Validate arguments
     if args.command == "train":
         assert args.dataset, "Argument --dataset is required for training"
@@ -426,8 +434,11 @@ if __name__ == '__main__':
     # Configurations
     if args.command == "train":
         config = NucleiSegConfig()
+        config.LEARNING_RATE = args.lr
     else:
         config = NucleiSegInferenceConfig()
+    config.DETECTION_MIN_CONFIDENCE = args.DMC
+    config.RPN_NMS_THRESHOLD = args.RPN_NMS_THRESHOLD
     config.display()
 
     # Create model

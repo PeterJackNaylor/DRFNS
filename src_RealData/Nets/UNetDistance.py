@@ -375,4 +375,4 @@ class UNetDistance(UNetBatchNorm):
                 names_test = ["Loss", "F1", "wgt_path"]
                 if early_stop.DataCollectorStopper(values_test, names_test, step):
                     break
-        early_stop.save()
+        early_stop.save(log=self.LOG)

@@ -98,9 +98,9 @@ a set with the name, the parameters of the model
 
 ITERVAL = 4
 ITER8 = 10800
-LEARNING_RATE = [0.001, 0.0001]//, 0.00001]//, 0.000001]
-FEATURES = [16, 32, 64]
-WEIGHT_DECAY = [0.00005, 0.0005]
+LEARNING_RATE = [0.001, 0.0001]
+FEATURES = [32] //
+WEIGHT_DECAY = [0.0000005, 0.000005, 0.00005, 0.0005, 0.005]
 BS = 16
 
 Unet_file = file('src_RealData/UNet.py')
@@ -146,7 +146,7 @@ In outputs: a set with the name and model or csv
 */
 // a)
 P1 = [0, 1, 10, 11]//[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-P2 = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0] //, 1.5, 2.0]
+P2 = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0] //, 1.5, 2.0]
 VAL_REC.cross(RESULT_TRAIN).map{ first, second -> [first, second.drop(1)].flatten() } .set{ VAL_OPTIONS_pre }
 Meanfile2.cross(VAL_OPTIONS_pre).map { first, second -> [first, second.drop(1)].flatten() } .into{VAL_OPTIONS;VAL_OPTIONS2}
 

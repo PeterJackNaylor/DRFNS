@@ -17,6 +17,15 @@ class Model(UNetBatchNorm):
     """
     UNet model
     """
+    def relu_layer_f(self, i_layer, biases, scope_name):
+        """
+        Defining relu layer
+        """
+        with tf.name_scope(scope_name):
+            act = tf.nn.leaky_relu(tf.nn.bias_add(i_layer, biases), 0.01)
+            self.var_to_sum.append(act)
+            return act
+
     def validation(self, p1, p2, steps):
         """
         How you validate this model, i.e choose hyperparameters

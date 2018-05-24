@@ -50,15 +50,15 @@ class EarlyStopper(object):
         return self.EARLY_STOP
 	
 
-    def save(self, path_var="wgt_path"):
+    def save(self, path_var="wgt_path", log="."):
         self.DataCollector.to_csv(self.output_name)
         if not self.EARLY_STOP:
             step = self.DataCollector.index.max()
             best_ind = self.DataCollector['F1'].argmax()
             if step != best_ind:
-                best_wgt = self.DataCollector.loc[best_ind, path_var]
-                LOG = os.path.abspath(best_wgt)
-                make_it_seem_new = LOG.replace(str(best_ind), str(best_ind+100))
+                best_wgt = self.DataCollector.loc[best_ind, path_var].split('/')[-1]
+                LOG = os.path.join(log, best_wgt)
+                make_it_seem_new = LOG.replace(str(best_ind), str(step+100))
                 os.symlink(best_wgt + ".data-00000-of-00001", make_it_seem_new + ".data-00000-of-00001")
                 os.symlink(best_wgt + ".index", make_it_seem_new + ".index")
                 os.symlink(best_wgt + ".meta", make_it_seem_new + ".meta")

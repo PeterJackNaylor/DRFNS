@@ -28,7 +28,8 @@ def CreateTFRecord(OUTNAME, PATH, CROP, SIZE,
     CROP, SIZE, TRANSFORM_LIST, UNET, SEED and TEST_PATIENT. 
     OUTNAME is the name of the record.
     """
-
+    if "train" in SPLIT:
+        SPLIT = "train"
     tfrecords_filename = OUTNAME
     writer = tf.python_io.TFRecordWriter(tfrecords_filename)
 

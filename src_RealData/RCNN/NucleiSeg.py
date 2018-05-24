@@ -39,7 +39,7 @@ import numpy as np
 import skimage.io
 from imgaug import augmenters as iaa
 from glob import glob
-
+from skimage.io import imsave
 # Root directory of the project
 ROOT_DIR = os.path.abspath("Mask_RCNN/")
 
@@ -63,8 +63,8 @@ RESULTS_DIR = os.path.join(ROOT_DIR, "results/nucleus/")
 
 # The dataset doesn't have a standard train/val split, so I picked
 # a variety of images to surve as a validation set.
-N_VAL_IMAGE_IDS = 4
-N_TRAIN_ = 12 
+N_VAL_IMAGE_IDS = 4 * 4
+N_TRAIN_ = 12 * 4 
 MEAN_FILE = "mean_file.npy"
 ############################################################
 #  Configurations
@@ -73,10 +73,11 @@ MEAN_FILE = "mean_file.npy"
 class NucleiSegConfig(Config):
     """Configuration for training on the nucleus segmentation dataset."""
     # Give the configuration a recognizable name
+    LEARNING_RATE = 0.001
     NAME = "NucleiSeg"
-
+    GPU_COUNT = 4
     # Adjust depending on your GPU memory
-    IMAGES_PER_GPU = 6
+    IMAGES_PER_GPU = 1
 
     # Number of classes (including background)
     NUM_CLASSES = 1 + 1  # Background + nucleus
@@ -87,19 +88,19 @@ class NucleiSegConfig(Config):
 
     # Don't exclude based on confidence. Since we have two classes
     # then 0.5 is the minimum anyway as it picks between nucleus and BG
-    DETECTION_MIN_CONFIDENCE = 0
+    DETECTION_MIN_CONFIDENCE = 0.9
 
     # Backbone network architecture
     # Supported values are: resnet50, resnet101
-    BACKBONE = "resnet50"
-
+    BACKBONE = "resnet101"
+    BACKBONE_STRIDES = [4, 8, 16, 32, 64]
     # Input image resizing
     # Random crops of size 512x512
     IMAGE_RESIZE_MODE = "crop"
     IMAGE_MIN_DIM = 512
     IMAGE_MAX_DIM = 512
     IMAGE_MIN_SCALE = 2.0
-
+    RPN_ANCHOR_RATIOS = [0.5, 1., 2.]
     # Length of square anchor side in pixels
     RPN_ANCHOR_SCALES = (8, 16, 32, 64, 128)
 
@@ -109,33 +110,33 @@ class NucleiSegConfig(Config):
 
     # Non-max suppression threshold to filter RPN proposals.
     # You can increase this during training to generate more propsals.
-    RPN_NMS_THRESHOLD = 0.9
+    RPN_NMS_THRESHOLD = 0.5
 
     # How many anchors per image to use for RPN training
-    RPN_TRAIN_ANCHORS_PER_IMAGE = 64
-
+    RPN_TRAIN_ANCHORS_PER_IMAGE = 64 * 4
+    
     # Image mean (RGB)
     MEAN_PIXEL = np.array([43.53, 39.56, 48.22])
     MEAN_PIXEL = np.load(MEAN_FILE).astype(float)
-
+    MEAN_PIXEL = np.array([123.7, 116.8, 103.9])
+    IMAGE_MIN_SCALE = 0
+    
     # If enabled, resizes instance masks to a smaller size to reduce
     # memory load. Recommended when using high-resolution images.
     USE_MINI_MASK = True
     MINI_MASK_SHAPE = (56, 56)  # (height, width) of the mini-mask
-
+   
     # Number of ROIs per image to feed to classifier/mask heads
     # The Mask RCNN paper uses 512 but often the RPN doesn't generate
     # enough positive proposals to fill this and keep a positive:negative
     # ratio of 1:3. You can increase the number of proposals by adjusting
     # the RPN NMS threshold.
-    TRAIN_ROIS_PER_IMAGE = 128 * 3
-
+    TRAIN_ROIS_PER_IMAGE = 600
     # Maximum number of ground truth instances to use in one image
-    MAX_GT_INSTANCES = 300
-
+    MAX_GT_INSTANCES = 256
     # Max number of final detections per image
-    DETECTION_MAX_INSTANCES = 600
-
+    DETECTION_MAX_INSTANCES = 512
+    DETECTION_NMS_THRESHOLD = 0.2
 
 class NucleiSegInferenceConfig(NucleiSegConfig):
     # Set batch size to 1 to run one image at a time
@@ -146,6 +147,8 @@ class NucleiSegInferenceConfig(NucleiSegConfig):
     # Non-max suppression threshold to filter RPN proposals.
     # You can increase this during training to generate more propsals.
     RPN_NMS_THRESHOLD = 0.7
+    DETECTION_MIN_CONFIDENCE = 0.5
+    DETECTION_MAX_INSTANCES = 5000
 
 
 ############################################################
@@ -199,15 +202,9 @@ class NucleiSegDataset(utils.Dataset):
         info = self.image_info[image_id]
         # Get mask directory from image path
         mask_file = info['path'].replace('Slide', 'GT')
-
         mask = skimage.measure.label(skimage.io.imread(mask_file))
-        x, y = mask.shape
-        res = np.zeros(shape=(x, y, mask.max()), dtype=bool)
-        for i in range(mask.max()):
-            x_l, y_l = np.where(mask == (i + 1))
-            res[x_l, y_l, i] = True
-
-        return mask, np.ones([mask.shape[-1]], dtype=np.int32)
+        res = np.stack([mask == i for i in range(1, mask.max() + 1)], axis=-1)
+        return res, np.ones([res.shape[-1]], dtype=np.int32)
 
     def image_reference(self, image_id):
         """Return the path of the image."""
@@ -259,8 +256,14 @@ def train(model, dataset_dir, subset):
 
     print("Train all layers")
     model.train(dataset_train, dataset_val,
-                learning_rate=config.LEARNING_RATE,
-                epochs=40,
+                learning_rate=config.LEARNING_RATE / 10,
+                epochs=20,
+                augmentation=augmentation,
+                layers='all')
+
+    model.train(dataset_train, dataset_val,
+                learning_rate=config.LEARNING_RATE / 100,
+                epochs=20,
                 augmentation=augmentation,
                 layers='all')
 
@@ -268,6 +271,46 @@ def train(model, dataset_dir, subset):
 ############################################################
 #  Detection
 ############################################################
+def FromMaskToPred(mask):
+    x, y, z = mask.shape
+    res = np.zeros(shape=(x, y), dtype='int64')
+    for val, k in enumerate(range(z)):
+        res[mask[:,:,k]] = val + 1
+    return res
+
+import os
+
+def CheckOrCreate(path):
+    """
+    If path exists, does nothing otherwise it creates it.
+    """
+    if not os.path.isdir(path):
+        os.makedirs(path)
+from skimage.morphology import watershed, dilation, disk, reconstruction
+
+def my_clear_border(pred, buffer_size, x, y, xw, yh, image):
+    sx, sy = image.shape[0:2]
+    pred_cpy = pred.copy()
+    pred_cpy[pred_cpy > 0] = 1
+    mask = pred_cpy
+    border_fill = np.zeros_like(pred_cpy)
+    # import pdb; pdb.set_trace()
+    if x != 0:
+        border_fill[0:buffer_size, :] = 1
+        mask[0:buffer_size, :] = 1
+    if y != 0:
+        border_fill[:, 0:buffer_size] = 1
+        mask[:, 0:buffer_size] = 1
+    if xw != sx:
+        border_fill[-buffer_size::, :] = 1
+        mask[-buffer_size::, :] = 1
+    if yh != sy:
+        border_fill[:,-buffer_size::] = 1
+        mask[:,-buffer_size::] = 1
+    
+    reconstructed = reconstruction(border_fill, mask, 'dilation')
+    pred[reconstructed > 0] = 0
+    return skimage.measure.label(pred)
 
 def detect(model, dataset_dir, subset):
     """Run detection on images in the given directory."""
@@ -288,26 +331,56 @@ def detect(model, dataset_dir, subset):
     submission = []
     for image_id in dataset.image_ids:
         # Load image and run detection
+        # import pdb; pdb.set_trace()
         image = dataset.load_image(image_id)
-        # Detect objects
-        r = model.detect([image], verbose=0)[0]
-        # Encode image to RLE. Returns a string of multiple lines
-        source_id = dataset.image_info[image_id]["id"]
-        submission.append(rle)
+        windowSize = (1000, 1000)
+        stepSize = (250, 250)
+        res = np.zeros(shape=(1000, 1000), dtype="int64")
+        nmax = 0
+        for x ,y, xw, yh, sub_image in sliding_window(image, stepSize, windowSize): 
+            # Detect objects
+            pred = model.detect([sub_image], verbose=0)[0]
+            # Encode image to RLE. Returns a string of multiple lines
+            source_id = dataset.image_info[image_id]["id"]
+            PRED = FromMaskToPred(pred['masks'])
+            nmax = PRED.max()
+            #buffer_size = 5
+            #PRED = my_clear_border(PRED, buffer_size, x, y, xw, yh, image)
+            PRED[PRED > 0] += nmax
+            res[x:xw, y:yh] += PRED
+            nmax += PRED.max()
+            visualize.display_instances(
+                sub_image, pred['rois'], pred['masks'], pred['class_ids'],
+                dataset.class_names, pred['scores'],
+                show_bbox=False, show_mask=False,
+                title="Predictions")
+            plt.savefig("{}/{}".format(submit_dir, os.path.basename(dataset.image_info[image_id]["id"])).replace('.png', str(x)+str(y)+".png"))
+            
+        file_name = "{}/{}".format(submit_dir, os.path.basename(dataset.image_info[image_id]["id"])).replace('.png', '_mask.png')
+        CheckOrCreate(os.path.dirname(file_name))
+        imsave(file_name, res)
         # Save image with masks
-        visualize.display_instances(
-            image, r['rois'], r['masks'], r['class_ids'],
-            dataset.class_names, r['scores'],
-            show_bbox=False, show_mask=False,
-            title="Predictions")
-        plt.savefig("{}/{}.png".format(submit_dir, dataset.image_info[image_id]["id"]))
 
     # Save to csv file
-    submission = "ImageId,EncodedPixels\n" + "\n".join(submission)
-    file_path = os.path.join(submit_dir, "submit.csv")
-    with open(file_path, "w") as f:
-        f.write(submission)
     print("Saved to ", submit_dir)
+
+
+def sliding_window(image, stepSize, windowSize):
+    # slide a window across the imag
+    for x in range(0, image.shape[0] - windowSize[0] + stepSize[0], stepSize[0]):
+        for y in range(0, image.shape[1] - windowSize[1] + stepSize[1], stepSize[1]):
+            # yield the current window  
+            res_img = image[x:x + windowSize[0], y:y + windowSize[1]]
+            change = False
+            if res_img.shape[0] != windowSize[0]:
+                x = image.shape[0] - windowSize[0]
+                change = True
+            if res_img.shape[1] != windowSize[1]:
+                y = image.shape[1] - windowSize[1]
+                change = True
+            if change:
+                res_img = image[x:x + windowSize[0], y:y + windowSize[1]]
+            yield (x, y, x + windowSize[0], y + windowSize[1], res_img)
 
 
 ############################################################

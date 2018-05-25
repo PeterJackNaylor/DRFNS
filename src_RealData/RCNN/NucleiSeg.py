@@ -116,8 +116,8 @@ class NucleiSegConfig(Config):
     RPN_TRAIN_ANCHORS_PER_IMAGE = 64 * 4
     
     # Image mean (RGB)
-    MEAN_PIXEL = np.array([43.53, 39.56, 48.22])
-    MEAN_PIXEL = np.load(MEAN_FILE).astype(float)
+#    MEAN_PIXEL = np.array([43.53, 39.56, 48.22])
+#    MEAN_PIXEL = np.load(MEAN_FILE).astype(float)
     MEAN_PIXEL = np.array([123.7, 116.8, 103.9])
     IMAGE_MIN_SCALE = 0
     
@@ -409,13 +409,13 @@ if __name__ == '__main__':
     parser.add_argument('--subset', required=False,
                         metavar="Dataset sub-directory",
                         help="Subset of dataset to run prediction on")
-    parser.add_argument('--lr', required=False, default=0.001,
+    parser.add_argument('--lr', required=False, default=0.001, type=float,
                         metavar="learning_rate value",
                         help="learning rate")
-    parser.add_argument('--DMC', required=False, default=0.9,
+    parser.add_argument('--DMC', required=False, default=0.9, type=float,
                         metavar="DETECTION_MIN_CONFIDENCE",
                         help="DETECTION_MIN_CONFIDENCE")
-    parser.add_argument('--RPN_NMS_THRESHOLD', required=False, default=0.7,
+    parser.add_argument('--RPN_NMS_THRESHOLD', required=False, default=0.7, type=float,
                         metavar="RPN_NMS_THRESHOLD",
                         help="RPN_NMS_THRESHOLD")
     args = parser.parse_args()

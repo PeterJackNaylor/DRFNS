@@ -13,7 +13,7 @@ In addition, if one wishes to reproduce the results achieved with FCN, please do
 # Hardware
 This code was run on a K80 GPU. A K80 has a bi-heart and that is why ```maxForks 2``` in the nextflow files. Also do not hesitate to modify the processes environnement. For instance, to assure that jobs were running on seperate nodes, I used the options ```beforeScript``` and ```afterScript```. The scripts called at these moment are just locks. If one job launches first it will create a lock (for example for GPU number 0) to alert other jobs that he is using a GPU (number 0). Removes these lines if you do not need them.
 # Data 
-The data made publicaly available by our institute can be found [here](https://zenodo.org/record/1175282/files/TNBC_NucleiSegmentation.zip). If you want to run the code by yourself please run the file download_metadata.sh, ```bash download_metadata.sh```. This will download *DS1* and *DS2* as described in the paper, moreover it will download the pretrained weights for the FCN model. 
+The data made publicaly available by our institute can be found [here](https://zenodo.org/record/1175282/files/TNBC_NucleiSegmentation.zip). If you want to run the code by yourself please run the file download_metadata.sh, ```bash download_data.sh``` that can be found in the datafolder. This will download *DS1* and *DS2* as described in the paper, moreover it will download the pretrained weights for the FCN model. 
 By running this script, the image file will be subdivided into groups as described in the paper. 
 One could also find the data annouced publicaly available by checking out the website created by the authors [\[Neeraj et al\]](https://nucleisegmentationbenchmark.weebly.com/).
 # Running the pipeline with synthetic data
